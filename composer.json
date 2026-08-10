@@ -1,0 +1,72 @@
+{
+    "name": "finlight/client",
+    "description": "PHP client for the finlight.me financial news API - search sentiment-scored, entity-tagged market news and verify finlight webhooks.",
+    "type": "library",
+    "keywords": [
+        "finlight",
+        "financial-news",
+        "news-api",
+        "stock-news",
+        "sentiment-analysis",
+        "entity-extraction",
+        "market-data",
+        "fintech",
+        "webhooks",
+        "api-client"
+    ],
+    "homepage": "https://finlight.me",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "finlight",
+            "homepage": "https://finlight.me"
+        }
+    ],
+    "support": {
+        "docs": "https://docs.finlight.me",
+        "issues": "https://github.com/callbk/finlight-client-php/issues",
+        "source": "https://github.com/callbk/finlight-client-php"
+    },
+    "require": {
+        "php": "^8.1",
+        "ext-json": "*",
+        "php-http/discovery": "^1.19",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
+        "psr/http-message": "^1.1 || ^2.0"
+    },
+    "require-dev": {
+        "guzzlehttp/guzzle": "^7.8",
+        "nyholm/psr7": "^1.8",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^10.5 || ^11.0"
+    },
+    "suggest": {
+        "guzzlehttp/guzzle": "A PSR-18 HTTP client. Used automatically when present, which is how the configured timeout is applied."
+    },
+    "autoload": {
+        "psr-4": {
+            "Finlight\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Finlight\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "stan": "phpstan analyse"
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.0.x-dev"
+        }
+    }
+}

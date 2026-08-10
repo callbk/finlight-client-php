@@ -1,0 +1,10 @@
+parameters:
+    level: max
+    # Matches the ^8.1 constraint in composer.json, so 8.2+ only syntax is caught
+    # here rather than by a user on the minimum supported version.
+    phpVersion:
+        min: 80100
+        max: 80400
+    paths:
+        - src
+        - tests

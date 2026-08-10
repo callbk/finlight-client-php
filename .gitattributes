@@ -1,0 +1,12 @@
+# Keep development-only files out of the Composer dist archive, so
+# `composer require finlight/client` ships runtime code and nothing else.
+/.github            export-ignore
+/tests              export-ignore
+/.gitattributes     export-ignore
+/.gitignore         export-ignore
+/phpunit.xml.dist   export-ignore
+/phpstan.neon.dist  export-ignore
+/CHANGELOG.md       export-ignore
+
+# Normalise line endings so checkouts are identical across platforms.
+* text=auto eol=lf
