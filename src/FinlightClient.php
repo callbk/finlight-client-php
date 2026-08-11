@@ -21,7 +21,7 @@ use Psr\Http\Message\StreamFactoryInterface;
  */
 final class FinlightClient
 {
-    public const VERSION = '1.0.0';
+    public const VERSION = '1.0.1';
 
     public readonly ArticleService $articles;
 

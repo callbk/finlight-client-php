@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Finlight\Tests\Service;
 
 use Finlight\Config;
+use Finlight\Exception\MalformedResponseException;
 use Finlight\FinlightClient;
 use Finlight\Model\ArticleCategory;
 use Finlight\Model\OrderBy;
@@ -64,7 +65,7 @@ final class ServiceTest extends TestCase
 
     public function testFetchArticleByLinkUsesGet(): void
     {
-        $this->http->push(self::json(Fixtures::article()));
+        $this->http->push(self::json(Fixtures::articleByLinkResponse()));
 
         $article = $this->client()->articles->fetchArticleByLink(new GetArticleByLinkParams(
             link: 'https://www.reuters.com/markets/example-article',
@@ -72,11 +73,34 @@ final class ServiceTest extends TestCase
         ));
 
         self::assertSame('Apple beats quarterly expectations', $article->title);
+        self::assertSame('https://www.reuters.com/markets/example-article', $article->link);
 
         $request = $this->http->lastRequest();
         self::assertSame('GET', $request->getMethod());
         self::assertSame('/v2/articles/by-link', $request->getUri()->getPath());
         self::assertSame('', (string) $request->getBody());
+    }
+
+    public function testFetchArticleByLinkAlsoAcceptsAnUnwrappedArticle(): void
+    {
+        $this->http->push(self::json(Fixtures::article()));
+
+        $article = $this->client()->articles->fetchArticleByLink(
+            new GetArticleByLinkParams(link: 'https://www.reuters.com/markets/example-article')
+        );
+
+        self::assertSame('Apple beats quarterly expectations', $article->title);
+    }
+
+    public function testFetchArticleByLinkRejectsAnEnvelopeWithoutAnArticleObject(): void
+    {
+        $this->http->push(self::json(['status' => 'ok', 'article' => 'nope']));
+
+        $this->expectException(MalformedResponseException::class);
+
+        $this->client()->articles->fetchArticleByLink(
+            new GetArticleByLinkParams(link: 'https://www.reuters.com/markets/example-article')
+        );
     }
 
     public function testGetSourcesMapsTheList(): void

@@ -67,6 +67,19 @@ final class Fixtures
     }
 
     /**
+     * The by-link endpoint wraps the article in an envelope.
+     *
+     * @return array<string, mixed>
+     */
+    public static function articleByLinkResponse(): array
+    {
+        return [
+            'status' => 'ok',
+            'article' => self::article(),
+        ];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public static function sources(): array

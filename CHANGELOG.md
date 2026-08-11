@@ -6,6 +6,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-11
+
+### Fixed
+
+- `ArticleService::fetchArticleByLink()` threw `MalformedResponseException`
+  against the live API. `GET /v2/articles/by-link` wraps its payload in a
+  `{"status": ..., "article": {...}}` envelope, which was passed to
+  `Article::fromArray()` unopened. The envelope is now unwrapped; a bare
+  article is still accepted, since an article has no `article` field of its
+  own. The unit test had mocked the unwrapped shape, so the suite never
+  caught it.
+
 ## [1.0.0] - 2026-08-10
 
 Initial release. Surface mirrors the official TypeScript client where the two
@@ -38,5 +50,6 @@ overlap, so method names, defaults and retry behaviour match across SDKs.
 - WebSocket streaming is deliberately out of scope for this client; use
   webhooks, or one of the SDKs built for long-lived connections.
 
-[Unreleased]: https://github.com/callbk/finlight-client-php/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/callbk/finlight-client-php/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/callbk/finlight-client-php/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/callbk/finlight-client-php/releases/tag/v1.0.0

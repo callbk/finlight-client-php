@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Finlight\Service;
 
+use Finlight\Exception\MalformedResponseException;
 use Finlight\Http\ApiClient;
 use Finlight\Model\Article;
 use Finlight\Model\ArticleResponse;
@@ -35,7 +36,15 @@ final class ArticleService
     {
         $data = $this->apiClient->request('GET', '/v2/articles/by-link', $params->toArray());
 
-        /** @var array<string, mixed> $data */
-        return Article::fromArray($data);
+        // The endpoint wraps the article in a {"status": ..., "article": {...}} envelope.
+        // A bare article is accepted too, since it has no "article" field of its own.
+        $article = $data['article'] ?? $data;
+
+        if (!is_array($article)) {
+            throw new MalformedResponseException('Article: expected an object at "article".');
+        }
+
+        /** @var array<string, mixed> $article */
+        return Article::fromArray($article);
     }
 }
