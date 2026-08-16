@@ -1,34 +1,34 @@
 # finlight PHP Client
 
-*English | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [한국어](README.ko.md)*
+*[English](README.md) | 简体中文 | [日本語](README.ja.md) | [한국어](README.ko.md)*
 
 [![CI](https://github.com/callbk/finlight-client-php/actions/workflows/ci.yml/badge.svg)](https://github.com/callbk/finlight-client-php/actions/workflows/ci.yml)
 [![Packagist Version](https://img.shields.io/packagist/v/finlight/client)](https://packagist.org/packages/finlight/client)
 [![PHP Version](https://img.shields.io/packagist/dependency-v/finlight/client/php)](https://packagist.org/packages/finlight/client)
 [![License](https://img.shields.io/packagist/l/finlight/client)](LICENSE)
 
-PHP client for the [finlight.me](https://finlight.me) financial news API. Search market news enriched with sentiment scores and entity tags (tickers, ISIN, OpenFIGI), and verify inbound finlight webhooks.
+[finlight.me](https://finlight.me) 财经新闻 API 的 PHP 客户端。可检索带情感评分和实体标注（股票代码、ISIN、OpenFIGI）的市场新闻，并验证收到的 finlight Webhook。
 
-Full API reference: **[docs.finlight.me](https://docs.finlight.me)** · Get an API key: [app.finlight.me](https://app.finlight.me)
+完整 API 参考：**[docs.finlight.me](https://docs.finlight.me)** · 获取 API 密钥：[app.finlight.me](https://app.finlight.me)
 
-## Requirements
+## 环境要求
 
-- PHP 8.1 or newer
-- Any [PSR-18](https://www.php-fig.org/psr/psr-18/) HTTP client (Guzzle is used automatically when installed)
+- PHP 8.1 或更高版本
+- 任意 [PSR-18](https://www.php-fig.org/psr/psr-18/) HTTP 客户端（已安装 Guzzle 时会自动使用）
 
-## Installation
+## 安装
 
 ```bash
 composer require finlight/client
 ```
 
-If your project has no PSR-18 client yet, add one:
+如果你的项目尚无 PSR-18 客户端，请一并安装：
 
 ```bash
 composer require finlight/client guzzlehttp/guzzle
 ```
 
-## Quick start
+## 快速开始
 
 ```php
 use Finlight\FinlightClient;
@@ -52,9 +52,9 @@ foreach ($response as $article) {
 }
 ```
 
-## Searching articles
+## 检索文章
 
-Every filter is optional — pass only what you need, as named arguments.
+所有过滤条件均为可选 —— 按需以命名参数传入即可。
 
 ```php
 use Finlight\Model\ArticleCategory;
@@ -79,26 +79,26 @@ $response = $client->articles->fetchArticles(new GetArticlesParams(
 echo $response->page, '/', $response->pageSize, ' — ', count($response), " articles\n";
 ```
 
-| Parameter | Type | Notes |
+| 参数 | 类型 | 说明 |
 | --- | --- | --- |
-| `query` | `string` | Boolean operators, field filters (`ticker:`, `source:`, `isin:`) and quoted phrases |
-| `tickers` | `string[]` | e.g. `['AAPL', 'NVDA']` |
-| `sources` | `string[]` | Replaces the default source set |
-| `optInSources` | `string[]` | Added on top of the default set |
-| `excludeSources` | `string[]` | Removed from results |
+| `query` | `string` | 布尔运算符、字段过滤（`ticker:`、`source:`、`isin:`）和引号短语 |
+| `tickers` | `string[]` | 例如 `['AAPL', 'NVDA']` |
+| `sources` | `string[]` | 替换默认新闻源集合 |
+| `optInSources` | `string[]` | 在默认集合之上追加 |
+| `excludeSources` | `string[]` | 从结果中剔除 |
 | `countries` | `string[]` | ISO 3166-1 alpha-2 |
-| `categories` | `ArticleCategory[]` | Topic filter |
-| `from` / `to` | `string` | `YYYY-MM-DD` or ISO 8601 |
-| `language` | `string` | ISO 639-1, defaults to `en` server-side |
-| `includeContent` | `bool` | Full article body |
-| `includeEntities` | `bool` | Tagged company data |
-| `excludeEmptyContent` | `bool` | Skip articles without content |
-| `orderBy` / `order` | `OrderBy` / `SortOrder` | Sorting |
-| `page` / `pageSize` | `int` | `pageSize` accepts 1–100 |
+| `categories` | `ArticleCategory[]` | 主题过滤 |
+| `from` / `to` | `string` | `YYYY-MM-DD` 或 ISO 8601 |
+| `language` | `string` | ISO 639-1，服务端默认为 `en` |
+| `includeContent` | `bool` | 文章全文 |
+| `includeEntities` | `bool` | 标注的公司数据 |
+| `excludeEmptyContent` | `bool` | 跳过无正文的文章 |
+| `orderBy` / `order` | `OrderBy` / `SortOrder` | 排序 |
+| `page` / `pageSize` | `int` | `pageSize` 取值范围 1–100 |
 
-`ArticleResponse` is `Countable` and `IteratorAggregate`, so `count($response)` and `foreach ($response as $article)` both work. The raw list stays available as `$response->articles`.
+`ArticleResponse` 实现了 `Countable` 和 `IteratorAggregate`，因此 `count($response)` 和 `foreach ($response as $article)` 均可使用。原始列表仍可通过 `$response->articles` 访问。
 
-### A single article by URL
+### 按 URL 获取单篇文章
 
 ```php
 use Finlight\Request\GetArticleByLinkParams;
@@ -114,7 +114,7 @@ foreach ($article->companies ?? [] as $company) {
 }
 ```
 
-## Sources
+## 新闻源
 
 ```php
 $sources = $client->sources->getSources();
@@ -124,15 +124,15 @@ $defaults = array_filter($sources, static fn ($source) => $source->isDefaultSour
 echo count($defaults), ' of ', count($sources), " sources are on by default\n";
 ```
 
-## Webhooks
+## Webhook
 
-finlight signs every delivery with HMAC-SHA256. `WebhookService` verifies the signature, enforces a five-minute replay window when a timestamp header is present, and hands back a parsed `Article`.
+finlight 对每次投递都使用 HMAC-SHA256 签名。`WebhookService` 会验证签名，在存在时间戳请求头时强制执行五分钟重放窗口，并返回解析后的 `Article`。
 
-It is static — no client instance and no API key required.
+它是静态方法 —— 无需客户端实例，也无需 API 密钥。
 
-> **The body must be the raw, unparsed request bytes.** Any middleware that decodes and re-encodes JSON before you read it will invalidate the signature.
+> **请求体必须是原始、未解析的字节。** 任何在你读取之前解码并重新编码 JSON 的中间件都会使签名失效。
 
-### Plain PHP
+### 原生 PHP
 
 ```php
 use Finlight\Exception\WebhookVerificationException;
@@ -150,7 +150,7 @@ try {
     exit;
 }
 
-// Acknowledge fast, process asynchronously.
+// 快速确认，异步处理。
 http_response_code(200);
 ```
 
@@ -202,7 +202,7 @@ public function handle(Request $request): Response
 }
 ```
 
-## Configuration
+## 配置
 
 ```php
 use Finlight\Config;
@@ -216,16 +216,16 @@ $client = new FinlightClient(new Config(
 ));
 ```
 
-| Option | Default | Meaning |
+| 选项 | 默认值 | 含义 |
 | --- | --- | --- |
-| `apiKey` | — | Required. Sent as the `X-API-KEY` header |
-| `baseUrl` | `https://api.finlight.me` | API base URL |
-| `timeoutMs` | `5000` | Applies to the HTTP client this library creates for you |
-| `retryCount` | `3` | **Total** attempts, so the default is one call plus two retries |
+| `apiKey` | — | 必填。通过 `X-API-KEY` 请求头发送 |
+| `baseUrl` | `https://api.finlight.me` | API 基础地址 |
+| `timeoutMs` | `5000` | 作用于本库为你创建的 HTTP 客户端 |
+| `retryCount` | `3` | **总**尝试次数，因此默认为一次调用加两次重试 |
 
-### Bringing your own HTTP client
+### 使用你自己的 HTTP 客户端
 
-Any PSR-18 client works. Inject it to control timeouts, proxies, middleware or logging:
+任意 PSR-18 客户端均可。注入它即可控制超时、代理、中间件或日志：
 
 ```php
 use Finlight\Config;
@@ -243,22 +243,22 @@ $client = new FinlightClient(
 );
 ```
 
-When you inject a client, `timeoutMs` no longer applies — PSR-18 has no portable timeout setting, so configure it on your own client.
+注入客户端后 `timeoutMs` 不再生效 —— PSR-18 没有可移植的超时设置，请在你自己的客户端上配置。
 
-## Errors
+## 错误处理
 
-Everything this library throws implements `Finlight\Exception\FinlightException`, so one catch block covers the lot.
+本库抛出的所有异常都实现了 `Finlight\Exception\FinlightException`，因此一个 catch 块即可全部覆盖。
 
-| Exception | When |
+| 异常 | 触发时机 |
 | --- | --- |
-| `AuthenticationException` | HTTP 401 / 403 — key invalid or plan lacks access |
+| `AuthenticationException` | HTTP 401 / 403 —— 密钥无效或套餐无权访问 |
 | `NotFoundException` | HTTP 404 |
-| `RateLimitException` | HTTP 429 after retries; carries `retryAfterSeconds` |
-| `ApiException` | Any other non-2xx; carries `statusCode` and `responseBody` |
-| `TransportException` | No response at all — DNS, connection, TLS, timeout |
-| `MalformedResponseException` | A 2xx body missing a required field |
-| `WebhookVerificationException` | Signature, timestamp or payload rejected |
-| `ConfigurationException` | No PSR-18 client or PSR-17 factory available at construction |
+| `RateLimitException` | 重试后仍为 HTTP 429；携带 `retryAfterSeconds` |
+| `ApiException` | 其他任何非 2xx；携带 `statusCode` 和 `responseBody` |
+| `TransportException` | 完全没有响应 —— DNS、连接、TLS、超时 |
+| `MalformedResponseException` | 2xx 响应体缺少必需字段 |
+| `WebhookVerificationException` | 签名、时间戳或负载被拒绝 |
+| `ConfigurationException` | 构造时找不到可用的 PSR-18 客户端或 PSR-17 工厂 |
 
 ```php
 use Finlight\Exception\FinlightException;
@@ -273,34 +273,38 @@ try {
 }
 ```
 
-### Retries
+### 重试
 
-HTTP `429`, `500`, `502`, `503` and `504` are retried automatically with exponential backoff (500 ms, 1 s, 2 s, …, capped at 30 s per pause), matching the official TypeScript client. Transport failures are **not** retried — they surface immediately as a `TransportException`.
+HTTP `429`、`500`、`502`、`503` 和 `504` 会按指数退避自动重试（500 ms、1 s、2 s……，单次等待上限 30 s），与官方 TypeScript 客户端一致。传输层失败**不会**重试 —— 它们会立即以 `TransportException` 抛出。
 
-## Scope
+## 功能范围
 
-This client covers the REST API and webhook verification.
+本客户端覆盖 REST API 和 Webhook 验证。
 
-**WebSocket streaming is intentionally not included.** PHP's request-response model is a poor fit for a long-lived stream, and doing it properly would require ReactPHP or Ratchet plus a supervised worker process. If you need the live stream, use the TypeScript, Go, Python or .NET clients — see [docs.finlight.me](https://docs.finlight.me). For push delivery into a PHP application, webhooks are the supported path.
+**WebSocket 流式推送是有意不包含的。** PHP 的请求-响应模型不适合长连接数据流，要正确实现需要 ReactPHP 或 Ratchet 外加一个受监督的 worker 进程。如果你需要实时流，请使用 TypeScript、Go、Python 或 .NET 客户端 —— 参见 [docs.finlight.me](https://docs.finlight.me)。若要将推送送入 PHP 应用，Webhook 是受支持的路径。
 
-## Development
+## 开发
 
 ```bash
 composer install
 composer test          # PHPUnit
-composer stan          # PHPStan at max level, checked against PHP 8.1–8.4
+composer stan          # PHPStan max 级别，针对 PHP 8.1–8.4 检查
 ```
 
-CI runs the suite against PHP 8.1 through 8.4.
+CI 会在 PHP 8.1 至 8.4 上运行测试套件。
 
-## Releasing
+## 发布
 
-The package is distributed through [Packagist](https://packagist.org/packages/finlight/client), which reads this repository directly — there is no upload step.
+该包通过 [Packagist](https://packagist.org/packages/finlight/client) 分发，Packagist 直接读取本仓库 —— 无需上传步骤。
 
-1. Bump `FinlightClient::VERSION` and update `CHANGELOG.md`.
-2. Tag the release: `git tag v1.0.1 && git push --tags`.
-3. Packagist picks up the tag automatically once the GitHub integration is enabled (Packagist → your profile → *Settings* → GitHub integration, or the package's *Update* button for a manual sync).
+1. 更新 `FinlightClient::VERSION` 并修改 `CHANGELOG.md`。
+2. 打标签发布：`git tag v1.0.1 && git push --tags`。
+3. 启用 GitHub 集成后，Packagist 会自动获取该标签（Packagist → 个人资料 → *Settings* → GitHub 集成，或使用包页面的 *Update* 按钮手动同步）。
 
-## License
+## 许可证
 
-MIT — see [LICENSE](LICENSE).
+MIT —— 参见 [LICENSE](LICENSE)。
+
+## 相关资源
+
+- 中文产品页：https://finlight.me/zh/news-api
