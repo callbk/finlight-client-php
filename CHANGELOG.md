@@ -29,7 +29,8 @@ Contract kit: 3.0.0-rc.5.
 - `FinlightClient` with `articles->search()`, `articles->searchAll()` (frozen request, `maxPages`,
   `truncated()`, `nextCursor()`), `articles->get()`, `articles->getByLink()`, `companies->search()`,
   `companies->getMany()`, `companies->get()` (ETag revalidation, `ifNoneMatch:`) and `sources->list()`.
-  Each successful lookup costs 1 credit (`getMany()` once per request); a 304 and errors are free.
+  Each lookup costs 1 credit, like an article request (`getMany()` once per request); a 304 and errors
+  cost 1 credit too.
   Parameters are arrays with the API keys; unknown keys and wrong shapes are refused before sending.
 - `sourceTypes` and `excludeSourceTypes` on `articles->search()`, `articles->searchAll()`,
   `Subscribe::enriched()` and `Subscribe::raw()`. Articles of unclassified sources never match `sourceTypes`

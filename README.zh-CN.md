@@ -99,8 +99,8 @@ $sources = $client->sources->list();
 
 - 未找到时抛出 `NotFoundException`，绝不会返回空结果。
 - 在文章 id 出现之前编入索引的文章，按 id 查询会返回 404。请对它们使用 `getByLink()`。
-- 查询需要消耗额度：每次成功的 `companies` 或 `sources` 调用从每月配额中扣除 1 个 credit（`getMany()` 每次请求只算一次）。
-  304 重新验证和错误响应不收费。每月配额和突发限制同样适用，因此这里也可能出现 429。
+- 查询需要消耗额度：每次 `companies` 或 `sources` 调用与文章请求一样从每月配额中扣除 1 个 credit（`getMany()` 每次请求只算一次）。
+  304 重新验证和错误响应也扣除 1 个 credit。每月配额和突发限制同样适用，因此这里也可能出现 429。
 - `companies` 调用需要 `entityAccess` 权限（否则抛出 `ForbiddenException`）。
 - `companies->get()` 保留最近的 256 条记录，并用其 ETag 重新验证；304 响应返回保留的记录。传入 `ifNoneMatch:`
   可自行管理缓存：此时 304 返回 `null`。
