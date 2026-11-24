@@ -91,8 +91,9 @@ $article = $client->articles->getByLink('https://www.reuters.com/...');
 
 $companies = $client->companies->search('NVDA', mic: 'XNAS');   // at most 10, no pages
 $companies = $client->companies->getMany([4821, 1001]);
-$company = $client->companies->get(4821);                       // revalidated with its ETag next time
-echo $company->cacheInfo()?->etag, "\n";
+$company = $client->companies->get(4821);                       // every call is a request, no SDK cache
+$etag = $company->cacheInfo()?->etag;                           // keep it with the record to cache yourself
+$fresh = $client->companies->get(4821, ifNoneMatch: $etag);     // null on 304 ("not modified")
 
 $sources = $client->sources->list();
 ```
@@ -100,10 +101,11 @@ $sources = $client->sources->list();
 - 未找到时抛出 `NotFoundException`，绝不会返回空结果。
 - 在文章 id 出现之前编入索引的文章，按 id 查询会返回 404。请对它们使用 `getByLink()`。
 - 查询需要消耗额度：每次 `companies` 或 `sources` 调用与文章请求一样从每月配额中扣除 1 个 credit（`getMany()` 每次请求只算一次）。
-  304 重新验证和错误响应也扣除 1 个 credit。每月配额和突发限制同样适用，因此这里也可能出现 429。
+  304 和错误响应也扣除 1 个 credit。每月配额和突发限制同样适用，因此这里也可能出现 429。
 - `companies` 调用需要 `entityAccess` 权限（否则抛出 `ForbiddenException`）。
-- `companies->get()` 保留最近的 256 条记录，并用其 ETag 重新验证；304 响应返回保留的记录。传入 `ifNoneMatch:`
-  可自行管理缓存：此时 304 返回 `null`。
+- SDK 不缓存公司记录，每次 `companies->get()` 都会发出请求。文章负载中已包含主要的公司字段。若要节省 credit，
+  请自行保存记录，并在其有效期内（`cacheInfo()->cacheControl` 的 max-age）不再调用。之后可将 ETag 通过
+  `ifNoneMatch:` 传回：此时 304 返回 `null`。304 同样扣除 1 个 credit。
 - `CompanyList` 和 `SourceList` 支持 `foreach` 和 `count()`。无法读取的条目在 `skipped()` 中。
 
 ## Absent, null and empty
@@ -279,7 +281,6 @@ $client = new FinlightClient(new FinlightConfig(
     maxRetries: 3,
     retryOnBurst: 'once',                 // or 'off'
     maxPages: 10,
-    companyCacheSize: 256,                // 0 turns the company cache off
     httpClient: null,                     // your own PSR-18 client
 ));
 ```
@@ -296,7 +297,6 @@ $client = new FinlightClient(new FinlightConfig(
 | `retryOnBurst`、`burstWait` | `once`、10 秒 | `burstWait` 仅在没有 `Retry-After` 时使用 |
 | `maxPages` | 10 | |
 | `maxResponseBytes` | 32 MiB | |
-| `companyCacheSize` | 256 | |
 | `pingInterval`、`watchdogTimeout`、`rotationInterval` | 25 秒、60 秒、115 分钟 | 用于您的 socket 循环 |
 | `reconnectBaseDelay`、`reconnectMaxDelay`、`longBackoff` | 1 秒、30 秒、60 秒 | 用于您的 socket 循环 |
 | `quotaReconnect`、`quotaReconnectInterval` | 开启、1 小时 | 用于您的 socket 循环 |

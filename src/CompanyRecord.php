@@ -78,14 +78,6 @@ final class CompanyRecord
         return self::fromWire($value, $path, $cacheInfo);
     }
 
-    /**
-     * @internal
-     */
-    public function withCacheInfo(CacheInfo $cacheInfo): self
-    {
-        return self::fromWire($this->wire, 'company', $cacheInfo);
-    }
-
     public function updatedAtTime(): ?\DateTimeImmutable
     {
         return Time::parse($this->updatedAt);

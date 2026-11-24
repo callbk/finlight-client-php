@@ -24,8 +24,7 @@ use Psr\Log\LoggerInterface;
  *   header is missing) and is tried once more. "off" throws at once. This retry does not count
  *   against maxRetries. A monthly 429 is never retried.
  * - maxPages (10) caps articles->searchAll(). maxResponseBytes (32 MiB) caps an answer.
- * - companyCacheSize (256, 0 turns it off): company records companies->get() keeps for ETag
- *   revalidation.
+ * - The SDK keeps no cache of company records; see companies->get().
  *
  * WebSocket: this SDK has no WebSocket transport. wssUrl and the stream values below are the
  * values to use in your own socket loop (see the README): ping every pingInterval (25 s), reconnect
@@ -70,7 +69,6 @@ final class FinlightConfig implements \JsonSerializable
         public readonly float $burstWait = 10.0,
         public readonly int $maxPages = 10,
         public readonly int $maxResponseBytes = 32 * 1024 * 1024,
-        public readonly int $companyCacheSize = 256,
         public readonly float $pingInterval = 25.0,
         public readonly float $watchdogTimeout = 60.0,
         public readonly float $rotationInterval = 115 * 60.0,
@@ -117,8 +115,7 @@ final class FinlightConfig implements \JsonSerializable
         }
         $nonNegative = [
             'retryBaseDelay' => $retryBaseDelay, 'burstWait' => $burstWait, 'reconnectBaseDelay' => $reconnectBaseDelay,
-            'longBackoff' => $longBackoff, 'maxRetries' => $maxRetries, 'companyCacheSize' => $companyCacheSize,
-            'dedupeCacheSize' => $dedupeCacheSize,
+            'longBackoff' => $longBackoff, 'maxRetries' => $maxRetries, 'dedupeCacheSize' => $dedupeCacheSize,
         ];
         foreach ($nonNegative as $name => $value) {
             if ($value < 0) {

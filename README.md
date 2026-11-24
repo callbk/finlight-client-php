@@ -92,8 +92,9 @@ $article = $client->articles->getByLink('https://www.reuters.com/...');
 
 $companies = $client->companies->search('NVDA', mic: 'XNAS');   // at most 10, no pages
 $companies = $client->companies->getMany([4821, 1001]);
-$company = $client->companies->get(4821);                       // revalidated with its ETag next time
-echo $company->cacheInfo()?->etag, "\n";
+$company = $client->companies->get(4821);                       // every call is a request, no SDK cache
+$etag = $company->cacheInfo()?->etag;                           // keep it with the record to cache yourself
+$fresh = $client->companies->get(4821, ifNoneMatch: $etag);     // null on 304 ("not modified")
 
 $sources = $client->sources->list();
 ```
@@ -101,11 +102,13 @@ $sources = $client->sources->list();
 - A miss throws `NotFoundException`. It is never an empty result.
 - Articles indexed before article ids existed answer 404 by id. Use `getByLink()` for them.
 - Lookups cost credits like article requests: each `companies` or `sources` call costs 1 credit from the
-  monthly quota (`getMany()` once per request). A 304 revalidation and errors cost 1 credit too. The monthly
+  monthly quota (`getMany()` once per request). A 304 and errors cost 1 credit too. The monthly
   quota and the burst limit apply, so a 429 is possible here too.
 - `companies` calls need the `entityAccess` entitlement (`ForbiddenException` otherwise).
-- `companies->get()` keeps the last 256 records and revalidates them with their ETag; a 304 answer
-  returns the kept record. Pass `ifNoneMatch:` to manage the cache yourself: a 304 then returns `null`.
+- The SDK keeps no cache of company records; every `companies->get()` is a request. The article payload
+  already carries the main company fields. To save credits, keep the records yourself and do not call again
+  while they are fresh (`cacheInfo()->cacheControl`, max-age). After that you may pass the ETag back as
+  `ifNoneMatch:`: a 304 then returns `null`. A 304 costs 1 credit too.
 - `CompanyList` and `SourceList` work with `foreach` and `count()`. Entries that could not be read are in
   `skipped()`.
 
@@ -297,7 +300,6 @@ $client = new FinlightClient(new FinlightConfig(
     maxRetries: 3,
     retryOnBurst: 'once',                 // or 'off'
     maxPages: 10,
-    companyCacheSize: 256,                // 0 turns the company cache off
     httpClient: null,                     // your own PSR-18 client
 ));
 ```
@@ -314,7 +316,6 @@ $client = new FinlightClient(new FinlightConfig(
 | `retryOnBurst`, `burstWait` | `once`, 10 s | `burstWait` only without `Retry-After` |
 | `maxPages` | 10 | |
 | `maxResponseBytes` | 32 MiB | |
-| `companyCacheSize` | 256 | |
 | `pingInterval`, `watchdogTimeout`, `rotationInterval` | 25 s, 60 s, 115 min | for your socket loop |
 | `reconnectBaseDelay`, `reconnectMaxDelay`, `longBackoff` | 1 s, 30 s, 60 s | for your socket loop |
 | `quotaReconnect`, `quotaReconnectInterval` | on, 1 h | for your socket loop |

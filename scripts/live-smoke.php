@@ -119,9 +119,10 @@ $check('companies.search + get', static function () use ($client, &$state): stri
             return sprintf('%d results, nothing to get', count($companies));
         }
         $record = $client->companies->get($id);
-        $again = $client->companies->get($id);
+        $etag = $record->cacheInfo()?->etag;
+        $notModified = $etag !== null && $client->companies->get($id, ifNoneMatch: $etag) === null;
 
-        return sprintf('%d results; get %d etag %s, revalidated %s', count($companies), $record->companyId, $record->cacheInfo()?->etag !== null ? 'yes' : 'no', var_export($again->cacheInfo()?->notModified, true));
+        return sprintf('%d results; get %d etag %s, not modified %s', count($companies), $record->companyId, $etag !== null ? 'yes' : 'no', var_export($notModified, true));
     } catch (ForbiddenException) {
         return 'plan has no entityAccess (403 as expected)';
     }

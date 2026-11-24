@@ -14,7 +14,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 v3 webhooks). Code written for 1.x does not run unchanged. To stay on 1.x, require `finlight/client:^1.0`.
 Migration guide: https://docs.finlight.me/migration/v2-to-v3
 
-Contract kit: 3.0.0-rc.5.
+Contract kit: 3.0.0-rc.6.
 
 ### Removed
 
@@ -23,14 +23,18 @@ Contract kit: 3.0.0-rc.5.
   old exceptions (`ApiException`, `AuthenticationException`, `RateLimitException`, `TransportException`,
   `ConfigurationException`, `MalformedResponseException`).
 - PHP 8.1.
+- Contract kit 3.0.0-rc.6: the SDK no longer keeps its own company cache. Removed from the 2.0.0 previews:
+  the `companyCacheSize` config key, `CacheInfo::$notModified` and the revalidation of kept records.
+  `companies->get()` without `ifNoneMatch:` sends no `If-None-Match`; a 304 to it is an error.
 
 ### Added
 
 - `FinlightClient` with `articles->search()`, `articles->searchAll()` (frozen request, `maxPages`,
   `truncated()`, `nextCursor()`), `articles->get()`, `articles->getByLink()`, `companies->search()`,
-  `companies->getMany()`, `companies->get()` (ETag revalidation, `ifNoneMatch:`) and `sources->list()`.
-  Each lookup costs 1 credit, like an article request (`getMany()` once per request); a 304 and errors
-  cost 1 credit too.
+  `companies->getMany()`, `companies->get()` (`cacheInfo()` with ETag and Cache-Control; `ifNoneMatch:`
+  for your own ETag, a 304 returns `null`) and `sources->list()`. The SDK keeps no cache: to save credits,
+  keep the records yourself and do not call while they are fresh. Each lookup costs 1 credit, like an
+  article request (`getMany()` once per request); a 304 and errors cost 1 credit too.
   Parameters are arrays with the API keys; unknown keys and wrong shapes are refused before sending.
 - `sourceTypes` and `excludeSourceTypes` on `articles->search()`, `articles->searchAll()`,
   `Subscribe::enriched()` and `Subscribe::raw()`. Articles of unclassified sources never match `sourceTypes`

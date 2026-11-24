@@ -249,29 +249,32 @@ final class HttpTest extends TestCase
         $t->client->sources->list();
     }
 
-    public function testCompanyCacheRevalidatesWithItsEtag(): void
+    public function testCompaniesGetKeepsNoCacheAndSendsOnlyTheCallersEtag(): void
     {
         $record = ['companyId' => 7, 'name' => 'Seven Inc.', 'isins' => [], 'listings' => []];
         $t = new TestClient();
-        $t->http->push(MockHttpClient::json(200, ['company' => $record], ['ETag' => '"abc"', 'Cache-Control' => 'public, max-age=86400']));
-        $t->http->push(MockHttpClient::json(304, null, ['ETag' => '"abc"']));
+        $t->http->always(static fn () => MockHttpClient::json(200, ['company' => $record], ['ETag' => '"abc"', 'Cache-Control' => 'public, max-age=86400']));
         $first = $t->client->companies->get(7);
         $info = $first->cacheInfo();
         self::assertNotNull($info);
         self::assertSame('"abc"', $info->etag);
-        self::assertFalse($info->notModified);
-        $second = $t->client->companies->get(7);
-        self::assertSame('"abc"', $t->http->last()->getHeaderLine('If-None-Match'));
-        self::assertSame('Seven Inc.', $second->name);
-        $info = $second->cacheInfo();
-        self::assertNotNull($info);
-        self::assertTrue($info->notModified);
         self::assertSame('public, max-age=86400', $info->cacheControl);
+        $second = $t->client->companies->get(7);
+        self::assertCount(2, $t->http->requests, 'every call is a request');
+        self::assertFalse($t->http->last()->hasHeader('If-None-Match'), 'no If-None-Match without the caller ETag');
+        self::assertSame('Seven Inc.', $second->name);
 
-        $off = new TestClient(['companyCacheSize' => 0]);
-        $off->http->always(static fn () => MockHttpClient::json(200, ['company' => $record], ['ETag' => '"abc"']));
-        $off->client->companies->get(7);
-        $off->client->companies->get(7);
-        self::assertSame('', $off->http->last()->getHeaderLine('If-None-Match'));
+        $t = new TestClient();
+        $t->http->push(MockHttpClient::json(304, null, ['ETag' => '"abc"']));
+        self::assertNull($t->client->companies->get(7, ifNoneMatch: '"abc"'));
+        self::assertSame('"abc"', $t->http->last()->getHeaderLine('If-None-Match'));
+    }
+
+    public function testA304WithoutTheCallersEtagIsAnError(): void
+    {
+        $t = new TestClient();
+        $t->http->push(MockHttpClient::json(304, null, ['ETag' => '"abc"']));
+        $this->expectException(\Finlight\FinlightApiException::class);
+        $t->client->companies->get(7);
     }
 }

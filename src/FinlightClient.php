@@ -40,7 +40,7 @@ final class FinlightClient
         $config = is_string($config) ? new FinlightConfig($config) : $config;
         $transport = new Transport($config);
         $this->articles = new ArticlesService($transport, $config->maxPages);
-        $this->companies = new CompaniesService($transport, $config->companyCacheSize);
+        $this->companies = new CompaniesService($transport);
         $this->sources = new SourcesService($transport);
     }
 }

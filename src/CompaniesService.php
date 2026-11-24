@@ -16,13 +16,10 @@ use Finlight\Internal\Transport;
  */
 final class CompaniesService
 {
-    /** @var array<int, CompanyRecord> kept records for ETag revalidation, oldest first */
-    private array $cache = [];
-
     /**
      * @internal
      */
-    public function __construct(private readonly Transport $transport, private readonly int $cacheSize)
+    public function __construct(private readonly Transport $transport)
     {
     }
 
@@ -62,9 +59,10 @@ final class CompaniesService
     /**
      * GET /v3/companies/{companyId}. A miss throws NotFoundException.
      *
-     * Without ifNoneMatch the client keeps the last records (companyCacheSize) and revalidates them
-     * with their ETag; a 304 answer returns the kept record. With ifNoneMatch you manage the cache
-     * yourself: a 304 answer returns null ("not modified"). cacheInfo() on the record gives its ETag.
+     * The SDK keeps no cache: every call is a request and costs 1 credit. To save credits, keep the
+     * records yourself and skip the call while the record is fresh (Cache-Control max-age).
+     * cacheInfo() on the record gives its ETag and Cache-Control. Pass that ETag as ifNoneMatch to
+     * send If-None-Match: a 304 answer then returns null ("not modified"). A 304 costs 1 credit too.
      *
      * @return ($ifNoneMatch is null ? CompanyRecord : CompanyRecord|null)
      */
@@ -73,51 +71,19 @@ final class CompaniesService
         if ($companyId < 1) {
             throw new FinlightValidationException('finlight: companyId must be an integer >= 1', 'companyId');
         }
-        $cached = null;
         $headers = [];
+        $okStatuses = [200];
         if ($ifNoneMatch !== null) {
             $headers['If-None-Match'] = $ifNoneMatch;
-        } else {
-            $cached = $this->cache[$companyId] ?? null;
-            $etag = $cached?->cacheInfo()?->etag;
-            if ($etag !== null) {
-                $headers['If-None-Match'] = $etag;
-            }
+            $okStatuses[] = 304;
         }
-        $response = $this->transport->call('GET', '/v3/companies/' . $companyId, [], null, $headers, [200, 304]);
+        $response = $this->transport->call('GET', '/v3/companies/' . $companyId, [], null, $headers, $okStatuses);
         if ($response->status === 304) {
-            if ($cached === null) {
-                return null;
-            }
-            $old = $cached->cacheInfo();
-            $record = $cached->withCacheInfo(new CacheInfo(
-                $response->header('ETag') ?? $old?->etag,
-                $response->header('Cache-Control') ?? $old?->cacheControl,
-                true,
-            ));
-            $this->remember($companyId, $record);
+            return null;
+        }
+        $info = new CacheInfo($response->header('ETag'), $response->header('Cache-Control'));
 
-            return $record;
-        }
-        $info = new CacheInfo($response->header('ETag'), $response->header('Cache-Control'), false);
-        $record = CompanyRecord::fromJson($response->jsonObject('company')['company'] ?? null, 'company', $info);
-        if ($info->etag !== null) {
-            $this->remember($companyId, $record);
-        }
-
-        return $record;
-    }
-
-    private function remember(int $companyId, CompanyRecord $record): void
-    {
-        if ($this->cacheSize <= 0) {
-            return;
-        }
-        unset($this->cache[$companyId]);
-        $this->cache[$companyId] = $record;
-        while (count($this->cache) > $this->cacheSize) {
-            unset($this->cache[array_key_first($this->cache)]);
-        }
+        return CompanyRecord::fromJson($response->jsonObject('company')['company'] ?? null, 'company', $info);
     }
 
     /**

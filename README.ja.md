@@ -93,8 +93,9 @@ $article = $client->articles->getByLink('https://www.reuters.com/...');
 
 $companies = $client->companies->search('NVDA', mic: 'XNAS');   // at most 10, no pages
 $companies = $client->companies->getMany([4821, 1001]);
-$company = $client->companies->get(4821);                       // revalidated with its ETag next time
-echo $company->cacheInfo()?->etag, "\n";
+$company = $client->companies->get(4821);                       // every call is a request, no SDK cache
+$etag = $company->cacheInfo()?->etag;                           // keep it with the record to cache yourself
+$fresh = $client->companies->get(4821, ifNoneMatch: $etag);     // null on 304 ("not modified")
 
 $sources = $client->sources->list();
 ```
@@ -102,11 +103,13 @@ $sources = $client->sources->list();
 - 見つからない場合は `NotFoundException` をスローします。空の結果にはなりません。
 - 記事 id の導入前にインデックスされた記事は、id で取得すると 404 になります。`getByLink()` を使ってください。
 - 参照系の呼び出しはクレジットを消費します。`companies` または `sources` の呼び出しは記事リクエストと同じく、月間クォータから 1 クレジットを
-  消費します（`getMany()` は 1 リクエストにつき 1 回）。304 の再検証とエラー応答も 1 クレジットを消費します。月間クォータとバースト制限が
+  消費します（`getMany()` は 1 リクエストにつき 1 回）。304 とエラー応答も 1 クレジットを消費します。月間クォータとバースト制限が
   適用されるため、ここでも 429 が返ることがあります。
 - `companies` の呼び出しには `entityAccess` の権限が必要です（ない場合は `ForbiddenException`）。
-- `companies->get()` は直近 256 件のレコードを保持し、ETag で再検証します。304 の場合は保持したレコードを返します。
-  `ifNoneMatch:` を渡すとキャッシュを自分で管理でき、その場合 304 は `null` を返します。
+- SDK は企業レコードをキャッシュしません。`companies->get()` は毎回リクエストを送ります。主要な企業フィールドは記事の
+  ペイロードにすでに含まれています。クレジットを節約するには、レコードを自分で保持し、新しいうちは
+  (`cacheInfo()->cacheControl` の max-age) 呼び出さないでください。その後は ETag を `ifNoneMatch:` で渡せます。
+  304 の場合は `null` を返します。304 も 1 クレジットを消費します。
 - `CompanyList` と `SourceList` は `foreach` と `count()` で使えます。読み取れなかった項目は `skipped()` にあります。
 
 ## Absent, null and empty
@@ -292,7 +295,6 @@ $client = new FinlightClient(new FinlightConfig(
     maxRetries: 3,
     retryOnBurst: 'once',                 // or 'off'
     maxPages: 10,
-    companyCacheSize: 256,                // 0 turns the company cache off
     httpClient: null,                     // your own PSR-18 client
 ));
 ```
@@ -309,7 +311,6 @@ $client = new FinlightClient(new FinlightConfig(
 | `retryOnBurst`、`burstWait` | `once`、10 秒 | `burstWait` は `Retry-After` がない場合のみ |
 | `maxPages` | 10 | |
 | `maxResponseBytes` | 32 MiB | |
-| `companyCacheSize` | 256 | |
 | `pingInterval`、`watchdogTimeout`、`rotationInterval` | 25 秒、60 秒、115 分 | ソケットループ用 |
 | `reconnectBaseDelay`、`reconnectMaxDelay`、`longBackoff` | 1 秒、30 秒、60 秒 | ソケットループ用 |
 | `quotaReconnect`、`quotaReconnectInterval` | 有効、1 時間 | ソケットループ用 |

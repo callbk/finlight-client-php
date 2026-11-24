@@ -89,7 +89,7 @@ final class RequestsTest extends TestCase
             self::assertSame('', (string) $sent->getBody());
         }
 
-        $this->checkResult(Kit::str($fx['id']), $result, $fx);
+        $this->checkResult(Kit::str($fx['id']), $result, $fx, $sent, $args);
     }
 
     /**
@@ -122,8 +122,9 @@ final class RequestsTest extends TestCase
 
     /**
      * @param array<string, mixed> $fx
+     * @param array<string, mixed> $args
      */
-    private function checkResult(string $id, mixed $result, array $fx): void
+    private function checkResult(string $id, mixed $result, array $fx, \Psr\Http\Message\RequestInterface $sent, array $args): void
     {
         $body = Kit::obj(Kit::obj($fx['response'])['body'] ?? []);
         switch ($id) {
@@ -155,13 +156,14 @@ final class RequestsTest extends TestCase
                 $headers = Kit::obj(Kit::obj($fx['response'])['headers']);
                 self::assertSame($headers['etag'], $result->cacheInfo()?->etag);
                 self::assertSame($headers['cache-control'], $result->cacheInfo()?->cacheControl);
-                self::assertFalse($result->cacheInfo()?->notModified);
+                self::assertFalse($sent->hasHeader('If-None-Match'), 'no If-None-Match without the caller ifNoneMatch');
                 $mics = array_map(static fn ($l) => $l->mic, $result->listings);
                 self::assertSame(array_unique($mics), $mics, 'one listing per exchange');
                 self::assertSame($result->primaryListing?->mic, $mics[0], 'primary listing first');
                 break;
             case 'R-09':
                 self::assertNull($result, '304 with a caller ETag is "not modified"');
+                self::assertSame(Kit::str($args['ifNoneMatch']), $sent->getHeaderLine('If-None-Match'), 'the caller ETag is sent unchanged');
                 break;
             case 'R-10':
                 self::assertInstanceOf(\Finlight\SourceList::class, $result);
