@@ -11,7 +11,8 @@ use Finlight\Internal\WireObject;
  * A source from sources->list().
  *
  * hasContent is null when the key is absent: the plan has no fullArticleAccess. That means
- * "unknown", not "no content". name and type are null until the catalog is curated.
+ * "unknown", not "no content". type is the source type (open, SourceType), null when the source
+ * is not classified. name is null when the catalog has none.
  */
 final class Source
 {

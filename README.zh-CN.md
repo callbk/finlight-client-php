@@ -57,6 +57,7 @@ $page = $client->articles->search([
     'languages' => ['en', 'de'],
     'from' => '2026-11-01',            // a string is sent as it is
     'to' => new DateTimeImmutable(),    // a DateTimeInterface is sent as UTC with milliseconds
+    'sourceTypes' => ['newswire', 'financial_media'],
     'eventTypes' => ['mna'],
     'minRelevance' => 0.5,
     'orderBy' => 'availableAt',
@@ -317,6 +318,9 @@ $client = new FinlightClient(new FinlightConfig(
 - 在角色功能出现之前打标签的文章，`role` 和 `relevance` 为 `null`，`events` 为 `[]`。
 - 对于在 id 出现之前编入索引的文章，`articles->get($id)` 返回 404。请使用 `getByLink()`。
 - 旧文章的 `availableAt` 为 `null`，raw 流中始终为 `null`。
+- `source->type` 和 `Source::$type` 取 `SourceType` 的值。来源未分类时为 `null`；在来源类型出现之前编入索引的文章，
+  `source->type` 也为 `null`。在 `search()` 和 `searchAll()` 中用 `sourceTypes` 和 `excludeSourceTypes` 过滤；
+  未分类的来源永远不匹配 `sourceTypes`，并会被 `excludeSourceTypes` 保留。流没有来源类型过滤。
 
 ## Migrating from 1.x
 

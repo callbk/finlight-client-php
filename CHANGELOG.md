@@ -14,7 +14,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 v3 webhooks). Code written for 1.x does not run unchanged. To stay on 1.x, require `finlight/client:^1.0`.
 Migration guide: https://docs.finlight.me/migration/v2-to-v3
 
-Contract kit: 3.0.0-rc.3.
+Contract kit: 3.0.0-rc.4.
 
 ### Removed
 
@@ -30,13 +30,17 @@ Contract kit: 3.0.0-rc.3.
   `truncated()`, `nextCursor()`), `articles->get()`, `articles->getByLink()`, `companies->search()`,
   `companies->getMany()`, `companies->get()` (ETag revalidation, `ifNoneMatch:`) and `sources->list()`.
   Parameters are arrays with the API keys; unknown keys and wrong shapes are refused before sending.
+- `sourceTypes` and `excludeSourceTypes` on `articles->search()` and `articles->searchAll()` (not on
+  streams). Articles of unclassified sources never match `sourceTypes` and are kept by `excludeSourceTypes`.
 - `FinlightConfig` with every key of the shared config table, PSR-18/PSR-17 injection, a PSR-3 logger and a
   PSR-20 clock. `User-Agent: finlight-client-php/2.0.0` and `x-client-version` on every request.
 - Tolerant models (`Article`, `Company`, `EventTag`, `CompanyRecord`, `Source`, ...) that keep the raw JSON
   (`rawJson()`), write back their wire form (`toWire()`), keep times as sent with strict `...Time()` parsers,
   and tell absent, `null` and `[]` apart (`contentPresent()`, `sentimentPresent()`, `companiesPresent()`,
   `eventsPresent()`). A broken entry of a list is skipped and kept in `skipped`.
-- Open vocabularies as string constants (`EventType`, `CompanyRole`, `IncludeBlock`, ...).
+- Open vocabularies as string constants (`EventType`, `CompanyRole`, `IncludeBlock`, ...). `SourceType` has
+  `newswire`, `press_release`, `financial_media`, `general_media`, `aggregator`, `blog` and `government`;
+  `source->type` and `Source::$type` are `null` when the source is not classified.
 - `Subscribe::enriched()`, `Subscribe::raw()` and `Subscribe::dialHeaders()` to build WebSocket subscribe
   messages and dial headers for your own socket loop, and `Frame::decode()` for v3 frames and the v2
   control frames sent before the first subscribe. There is no WebSocket transport.

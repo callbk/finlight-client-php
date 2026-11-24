@@ -22,7 +22,7 @@ final class ParamsTest extends TestCase
     /** Every search parameter, set. */
     private const ALL_SEARCH = [
         'query' => 'q', 'sources' => ['a'], 'optInSources' => ['b'], 'excludeSources' => ['c'],
-        'from' => '2026-01-01', 'to' => '2026-02-01', 'languages' => ['en'], 'tickers' => ['T'],
+        'sourceTypes' => ['newswire'], 'excludeSourceTypes' => ['blog'], 'from' => '2026-01-01', 'to' => '2026-02-01', 'languages' => ['en'], 'tickers' => ['T'],
         'countries' => ['US'], 'categories' => ['markets'], 'hasContent' => false, 'roles' => ['target'],
         'minRelevance' => 0, 'eventTypes' => ['mna'], 'eventDirections' => ['positive'],
         'minImportance' => 'low', 'sectors' => ['Energy'], 'companyCountries' => ['US'],
@@ -213,7 +213,8 @@ final class ParamsTest extends TestCase
         self::assertSame(3, $frame['payloadVersion']);
         self::assertIsString($frame['clientNonce']);
 
-        foreach (['payloadVersion' => '3', 'clientNonce' => 'x', 'includeContent' => true, 'includeEntities' => true, 'extended' => true, 'action' => 'ping', 'type' => 'ping', 'languages' => ['en']] as $key => $value) {
+        // sourceTypes and excludeSourceTypes are search filters only; streams do not take them.
+        foreach (['payloadVersion' => '3', 'clientNonce' => 'x', 'includeContent' => true, 'includeEntities' => true, 'extended' => true, 'action' => 'ping', 'type' => 'ping', 'languages' => ['en'], 'sourceTypes' => ['blog'], 'excludeSourceTypes' => ['blog']] as $key => $value) {
             try {
                 Subscribe::enriched([$key => $value, 'query' => 'q']);
                 self::fail('not refused: ' . $key);
@@ -221,7 +222,7 @@ final class ParamsTest extends TestCase
                 self::assertSame($key, $e->param());
             }
         }
-        foreach (['include' => ['content'], 'tickers' => ['A'], 'countries' => ['US'], 'optInSources' => ['a'], 'categories' => ['x'], 'excludeEmptyContent' => true] as $key => $value) {
+        foreach (['include' => ['content'], 'tickers' => ['A'], 'countries' => ['US'], 'optInSources' => ['a'], 'categories' => ['x'], 'excludeEmptyContent' => true, 'sourceTypes' => ['blog'], 'excludeSourceTypes' => ['blog']] as $key => $value) {
             try {
                 Subscribe::raw([$key => $value]);
                 self::fail('raw accepted ' . $key);

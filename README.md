@@ -57,6 +57,7 @@ $page = $client->articles->search([
     'languages' => ['en', 'de'],
     'from' => '2026-11-01',            // a string is sent as it is
     'to' => new DateTimeImmutable(),    // a DateTimeInterface is sent as UTC with milliseconds
+    'sourceTypes' => ['newswire', 'financial_media'],
     'eventTypes' => ['mna'],
     'minRelevance' => 0.5,
     'orderBy' => 'availableAt',
@@ -336,6 +337,10 @@ to stdout and installs no handlers.
 - Articles tagged before roles existed have `role` and `relevance` `null` and `events` `[]`.
 - `articles->get($id)` answers 404 for articles indexed before ids existed. Use `getByLink()`.
 - `availableAt` is `null` on older articles and always `null` on raw streams.
+- `source->type` and `Source::$type` take the `SourceType` values. They are `null` when the source is not
+  classified, and `source->type` is also `null` on articles indexed before source types existed. Filter with
+  `sourceTypes` and `excludeSourceTypes` in `search()` and `searchAll()`; unclassified sources never match
+  `sourceTypes` and are kept by `excludeSourceTypes`. Streams have no source type filter.
 
 ## Migrating from 1.x
 

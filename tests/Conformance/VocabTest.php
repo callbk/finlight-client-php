@@ -48,6 +48,8 @@ final class VocabTest extends TestCase
         self::assertSame($values('request', 'eventTypes'), EventType::ALL);
         self::assertSame($values('request', 'eventDirections'), EventDirection::ALL);
         self::assertSame($values('request', 'minImportance'), Importance::ALL);
+        self::assertSame($values('request', 'sourceTypes'), SourceType::ALL);
+        self::assertSame($values('request', 'excludeSourceTypes'), SourceType::ALL);
         self::assertSame($values('response', 'roles'), CompanyRole::ALL);
         self::assertSame($values('response', 'eventTypes'), EventType::ALL);
         self::assertSame($values('response', 'eventDirections'), EventDirection::ALL);

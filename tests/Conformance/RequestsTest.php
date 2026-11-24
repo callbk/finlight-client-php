@@ -166,11 +166,18 @@ final class RequestsTest extends TestCase
             case 'R-10':
                 self::assertInstanceOf(\Finlight\SourceList::class, $result);
                 $custom = false;
+                $types = [];
                 foreach ($result as $source) {
                     self::assertIsBool($source->hasContent);
                     $custom = $custom || $source->isCustom === true;
+                    $types[$source->domain] = $source->type;
                 }
                 self::assertTrue($custom);
+                self::assertSame(
+                    ['archive.example.org' => null, 'custom.example.net' => \Finlight\SourceType::BLOG, 'news.example.com' => \Finlight\SourceType::FINANCIAL_MEDIA],
+                    $types,
+                    'source types as sent, null when unclassified',
+                );
                 break;
             case 'R-11':
                 self::assertInstanceOf(\Finlight\SourceList::class, $result);

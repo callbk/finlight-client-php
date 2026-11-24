@@ -27,9 +27,11 @@ final class ArticlesService
     /**
      * One page of POST /v3/articles/search. Every parameter is optional; [] sends {}.
      *
-     * Keys: query, sources, optInSources, excludeSources, from, to, languages, tickers, countries,
-     * categories, hasContent, roles, minRelevance, eventTypes, eventDirections, minImportance,
-     * sectors, companyCountries, exchanges, orderBy, order, limit, cursor, include.
+     * Keys: query, sources, optInSources, excludeSources, sourceTypes, excludeSourceTypes, from, to,
+     * languages, tickers, countries, categories, hasContent, roles, minRelevance, eventTypes,
+     * eventDirections, minImportance, sectors, companyCountries, exchanges, orderBy, order, limit,
+     * cursor, include. sourceTypes and excludeSourceTypes take SourceType values; articles of an
+     * unclassified source never match sourceTypes and are kept by excludeSourceTypes.
      * from and to take a string (sent unchanged) or a DateTimeInterface (sent as UTC ISO 8601).
      *
      * @param array<string, mixed> $params

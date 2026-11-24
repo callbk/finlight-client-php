@@ -8,7 +8,8 @@ use Finlight\Internal\WireObject;
 use Finlight\Internal\Wire;
 
 /**
- * Article::$source. domain is the join key to sources->list(). type is null today (open, SourceType).
+ * Article::$source. domain is the join key to sources->list(). type is the source type when the
+ * article was indexed (open, SourceType); null when the source is not classified.
  */
 final class ArticleSource
 {

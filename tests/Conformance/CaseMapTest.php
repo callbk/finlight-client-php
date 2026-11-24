@@ -19,7 +19,7 @@ final class CaseMapTest extends TestCase
     {
         $entries = finlight_kit_verify(Kit::dir());
         self::assertArrayHasKey('conformance.md', $entries);
-        self::assertSame('3.0.0-rc.3', trim((string) file_get_contents(Kit::dir() . '/CONTRACT_VERSION')));
+        self::assertSame('3.0.0-rc.4', trim((string) file_get_contents(Kit::dir() . '/CONTRACT_VERSION')));
     }
 
     public function testEveryCaseIsMappedToAnExistingTest(): void

@@ -23,6 +23,8 @@ final class Params
         'sources' => 'strings',
         'optInSources' => 'strings',
         'excludeSources' => 'strings',
+        'sourceTypes' => 'strings',
+        'excludeSourceTypes' => 'strings',
         'from' => 'time',
         'to' => 'time',
         'languages' => 'languages',

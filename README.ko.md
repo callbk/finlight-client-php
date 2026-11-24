@@ -57,6 +57,7 @@ $page = $client->articles->search([
     'languages' => ['en', 'de'],
     'from' => '2026-11-01',            // a string is sent as it is
     'to' => new DateTimeImmutable(),    // a DateTimeInterface is sent as UTC with milliseconds
+    'sourceTypes' => ['newswire', 'financial_media'],
     'eventTypes' => ['mna'],
     'minRelevance' => 0.5,
     'orderBy' => 'availableAt',
@@ -327,6 +328,10 @@ PSR-3 `logger`를 넘기면 SDK의 동작을 볼 수 있습니다. 넘기지 않
 - 역할 기능 이전에 태깅된 기사는 `role`과 `relevance`가 `null`이고 `events`가 `[]`입니다.
 - id 도입 전에 색인된 기사는 `articles->get($id)`가 404입니다. `getByLink()`를 쓰세요.
 - 오래된 기사는 `availableAt`이 `null`이며, raw 스트림에서는 항상 `null`입니다.
+- `source->type`과 `Source::$type`은 `SourceType` 값을 가집니다. 소스가 분류되지 않았으면 `null`입니다. 소스 유형 도입 전에
+  색인된 기사도 `source->type`이 `null`입니다. `search()`와 `searchAll()`에서 `sourceTypes`와 `excludeSourceTypes`로
+  거를 수 있습니다. 분류되지 않은 소스는 `sourceTypes`에 맞지 않고 `excludeSourceTypes`에서는 남습니다.
+  스트림에는 소스 유형 필터가 없습니다.
 
 ## Migrating from 1.x
 

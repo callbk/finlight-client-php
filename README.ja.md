@@ -58,6 +58,7 @@ $page = $client->articles->search([
     'languages' => ['en', 'de'],
     'from' => '2026-11-01',            // a string is sent as it is
     'to' => new DateTimeImmutable(),    // a DateTimeInterface is sent as UTC with milliseconds
+    'sourceTypes' => ['newswire', 'financial_media'],
     'eventTypes' => ['mna'],
     'minRelevance' => 0.5,
     'orderBy' => 'availableAt',
@@ -330,6 +331,10 @@ PSR-3 の `logger` を渡すと SDK の動作を確認できます。渡さな�
 - ロール導入前にタグ付けされた記事は、`role` と `relevance` が `null`、`events` が `[]` です。
 - id 導入前にインデックスされた記事では、`articles->get($id)` が 404 になります。`getByLink()` を使ってください。
 - 古い記事の `availableAt` は `null` で、raw ストリームでは常に `null` です。
+- `source->type` と `Source::$type` は `SourceType` の値を取ります。ソースが未分類なら `null` です。ソースタイプ導入前に
+  インデックスされた記事でも `source->type` は `null` です。`search()` と `searchAll()` では `sourceTypes` と
+  `excludeSourceTypes` で絞り込めます。未分類のソースは `sourceTypes` に一致せず、`excludeSourceTypes` では残ります。
+  ストリームにはソースタイプの絞り込みはありません。
 
 ## Migrating from 1.x
 
