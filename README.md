@@ -1,306 +1,364 @@
-# finlight PHP Client
+# finlight client for PHP
 
 *English | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [한국어](README.ko.md)*
 
-[![CI](https://github.com/callbk/finlight-client-php/actions/workflows/ci.yml/badge.svg)](https://github.com/callbk/finlight-client-php/actions/workflows/ci.yml)
-[![Packagist Version](https://img.shields.io/packagist/v/finlight/client)](https://packagist.org/packages/finlight/client)
-[![PHP Version](https://img.shields.io/packagist/dependency-v/finlight/client/php)](https://packagist.org/packages/finlight/client)
-[![License](https://img.shields.io/packagist/l/finlight/client)](LICENSE)
+> **Breaking release.** Version 2.0.0 speaks only the finlight API v3. Code written for 1.x does not run
+> unchanged. To stay on 1.x (API v2), require `finlight/client:^1.0`. See [Migrating from 1.x](#migrating-from-1x).
 
-PHP client for the [finlight.me](https://finlight.me) financial news API. Search market news enriched with sentiment scores and entity tags (tickers, ISIN, OpenFIGI), and verify inbound finlight webhooks.
+PHP client for the [finlight](https://finlight.me) news API: search and look up financial news,
+companies and sources over REST, build and read WebSocket messages for your own socket loop, and verify
+webhooks.
 
-Full API reference: **[docs.finlight.me](https://docs.finlight.me)** · Get an API key: [app.finlight.me](https://app.finlight.me)
+## Versions
+
+| SDK version | API version | Status |
+|---|---|---|
+| 2.x | v3 (REST `/v3`, WebSocket `payloadVersion` 3, v3 webhooks) | current |
+| 1.x | v2 | no further releases |
+
+SDK and API versions are independent. Other finlight SDKs that speak API v3: TypeScript 4.x, Python 3.x,
+Go module `/v2`, .NET 2.x, Java 1.x, Ruby 1.x, Rust 0.2.
 
 ## Requirements
 
-- PHP 8.1 or newer
-- Any [PSR-18](https://www.php-fig.org/psr/psr-18/) HTTP client (Guzzle is used automatically when installed)
+- PHP 8.2 or newer, 64-bit
+- A [PSR-18](https://www.php-fig.org/psr/psr-18/) HTTP client and [PSR-17](https://www.php-fig.org/psr/psr-17/)
+  factories. Guzzle 7.8+ is used automatically when installed; any other is found through
+  `php-http/discovery` 1.19+.
+- `psr/log` 1.1+, `psr/clock` 1.0+, `psr/http-message` 1.1+
 
 ## Installation
 
 ```bash
-composer require finlight/client
-```
-
-If your project has no PSR-18 client yet, add one:
-
-```bash
-composer require finlight/client guzzlehttp/guzzle
+composer require finlight/client:^2.0 guzzlehttp/guzzle
 ```
 
 ## Quick start
 
 ```php
 use Finlight\FinlightClient;
-use Finlight\Request\GetArticlesParams;
 
-$client = new FinlightClient('your-api-key');
+$client = new FinlightClient('YOUR_API_KEY');
 
-$response = $client->articles->fetchArticles(new GetArticlesParams(
-    tickers: ['AAPL', 'NVDA'],
-    countries: ['US'],
-    pageSize: 10,
-));
-
-foreach ($response as $article) {
-    printf(
-        "%s  %s  [%s]\n",
-        $article->publishDate->format('Y-m-d H:i'),
-        $article->title,
-        $article->sentiment ?? 'unscored',
-    );
+$page = $client->articles->search(['query' => 'ticker:NVDA', 'limit' => 10]);
+foreach ($page->articles as $article) {
+    echo $article->publishedAt, '  ', $article->title, "\n";
 }
 ```
 
-## Searching articles
+Parameters are arrays with the keys of the API (`eventTypes`, `orderBy`, ...). Only the keys you set are
+sent. An unknown key throws `FinlightValidationException` before anything is sent.
 
-Every filter is optional — pass only what you need, as named arguments.
+## Search articles
 
 ```php
-use Finlight\Model\ArticleCategory;
-use Finlight\Model\OrderBy;
-use Finlight\Model\SortOrder;
-use Finlight\Request\GetArticlesParams;
-
-$response = $client->articles->fetchArticles(new GetArticlesParams(
-    query: '(ticker:AAPL OR ticker:NVDA) AND NOT source:www.reuters.com AND "earnings"',
-    from: '2026-01-01',
-    to: '2026-06-30',
-    language: 'en',
-    categories: [ArticleCategory::Markets, ArticleCategory::Economy],
-    includeContent: true,
-    includeEntities: true,
-    orderBy: OrderBy::PublishDate,
-    order: SortOrder::Desc,
-    pageSize: 50,
-    page: 1,
-));
-
-echo $response->page, '/', $response->pageSize, ' — ', count($response), " articles\n";
+$page = $client->articles->search([
+    'query' => 'eventType:mna AND companyCountry:US',
+    'languages' => ['en', 'de'],
+    'from' => '2026-11-01',            // a string is sent as it is
+    'to' => new DateTimeImmutable(),    // a DateTimeInterface is sent as UTC with milliseconds
+    'eventTypes' => ['mna'],
+    'minRelevance' => 0.5,
+    'orderBy' => 'availableAt',
+    'include' => ['content', 'companies', 'events'],
+    'limit' => 50,
+]);
+echo $page->pagination->hasMore ? 'more' : 'done', ' ', $page->pagination->nextCursor ?? '', "\n";
 ```
 
-| Parameter | Type | Notes |
-| --- | --- | --- |
-| `query` | `string` | Boolean operators, field filters (`ticker:`, `source:`, `isin:`) and quoted phrases |
-| `tickers` | `string[]` | e.g. `['AAPL', 'NVDA']` |
-| `sources` | `string[]` | Replaces the default source set |
-| `optInSources` | `string[]` | Added on top of the default set |
-| `excludeSources` | `string[]` | Removed from results |
-| `countries` | `string[]` | ISO 3166-1 alpha-2 |
-| `categories` | `ArticleCategory[]` | Topic filter |
-| `from` / `to` | `string` | `YYYY-MM-DD` or ISO 8601 |
-| `language` | `string` | ISO 639-1, defaults to `en` server-side |
-| `includeContent` | `bool` | Full article body |
-| `includeEntities` | `bool` | Tagged company data |
-| `excludeEmptyContent` | `bool` | Skip articles without content |
-| `orderBy` / `order` | `OrderBy` / `SortOrder` | Sorting |
-| `page` / `pageSize` | `int` | `pageSize` accepts 1–100 |
-
-`ArticleResponse` is `Countable` and `IteratorAggregate`, so `count($response)` and `foreach ($response as $article)` both work. The raw list stays available as `$response->articles`.
-
-### A single article by URL
+`searchAll()` walks the pages for you. It checks and freezes the request when you call it. Later pages
+only add the `cursor`. It stops after `maxPages` pages (default 10), because every page costs quota.
 
 ```php
-use Finlight\Request\GetArticleByLinkParams;
-
-$article = $client->articles->fetchArticleByLink(new GetArticleByLinkParams(
-    link: 'https://www.reuters.com/markets/example-article',
-    includeContent: true,
-    includeEntities: true,
-));
-
-foreach ($article->companies ?? [] as $company) {
-    printf("%s (%s) — confidence %.2f\n", $company->name, $company->ticker, $company->confidence ?? 0.0);
+$result = $client->articles->searchAll(['query' => 'ticker:AAPL', 'limit' => 100], maxPages: 5);
+foreach ($result as $article) {        // or: foreach ($result->pages() as $page)
+    echo $article->id, ' ', $article->title, "\n";
+}
+if ($result->truncated()) {
+    echo 'continue with cursor ', $result->nextCursor(), "\n";
 }
 ```
 
-## Sources
+A result can be iterated once. Wrong shapes (for example `'limit' => 0` or `'languages' => []`) throw
+`FinlightValidationException` before anything is sent. Values of vocabularies are not checked locally, so
+new server values work without an SDK update.
+
+## Look up articles, companies and sources
 
 ```php
-$sources = $client->sources->getSources();
+$article = $client->articles->get('EU8JwpsZ8iJehuyPZjMqRz', include: ['content']);
+$article = $client->articles->getByLink('https://www.reuters.com/...');
 
-$defaults = array_filter($sources, static fn ($source) => $source->isDefaultSource);
+$companies = $client->companies->search('NVDA', mic: 'XNAS');   // at most 10, no pages
+$companies = $client->companies->getMany([4821, 1001]);
+$company = $client->companies->get(4821);                       // revalidated with its ETag next time
+echo $company->cacheInfo()?->etag, "\n";
 
-echo count($defaults), ' of ', count($sources), " sources are on by default\n";
+$sources = $client->sources->list();
 ```
+
+- A miss throws `NotFoundException`. It is never an empty result.
+- Articles indexed before article ids existed answer 404 by id. Use `getByLink()` for them.
+- `companies` calls need the `entityAccess` entitlement (`ForbiddenException` otherwise).
+- `companies->get()` keeps the last 256 records and revalidates them with their ETag; a 304 answer
+  returns the kept record. Pass `ifNoneMatch:` to manage the cache yourself: a 304 then returns `null`.
+- `CompanyList` and `SourceList` work with `foreach` and `count()`. Entries that could not be read are in
+  `skipped()`.
+
+## Absent, null and empty
+
+Some keys depend on your plan or on `include`. They have three states:
+
+| State | Meaning | How to tell |
+|---|---|---|
+| absent | not requested, not in your plan, or a raw channel | `contentPresent()` / `sentimentPresent()` is false; `companies`, `events` are `null` |
+| `null` | requested and allowed, but there is no value | `contentPresent()` is true and `content` is `null` |
+| `[]` | tagged, nothing found | `companiesPresent()` is true and `companies` is `[]` |
+
+- `content` and `sentiment` use `contentPresent()` and `sentimentPresent()`.
+- `companies`, `events`, `events[].companyIds` and `Source::$hasContent` are `null` when absent.
+  `companiesPresent()` and `eventsPresent()` say the same. `companyIds` is only sent when `companies` is in
+  the same answer.
+- `media`, `countries` and `categories` are `[]` when missing.
+- Times keep the string that was sent (`publishedAt`). `publishedAtTime()` and the other `...Time()`
+  methods parse it strictly and return `null` for anything unreadable.
+- Unknown keys from newer servers are ignored. `rawJson()` gives the JSON as received.
+- Vocabulary values stay plain strings. Compare them with the constants (`EventType::MNA`,
+  `CompanyRole::ACQUIRER`, ...). Unknown values are kept as sent.
+
+## Real-time streams
+
+This SDK has no WebSocket transport. It builds the messages and decodes the frames for your own socket
+loop (for example with `ratchet/pawl` or `amphp/websocket-client`):
+
+```php
+use Finlight\FinlightApiException;
+use Finlight\Frame;
+use Finlight\Subscribe;
+
+$headers = Subscribe::dialHeaders('YOUR_API_KEY');   // lowercase x-api-key; never put the key in the URL
+$subscribe = Subscribe::enriched([
+    'query' => 'ticker:NVDA',
+    'include' => ['companies', 'events'],
+    'includeUpdates' => true,
+]);
+// dial wss://wss.finlight.me with $headers, then send $subscribe
+
+$frame = Frame::decode($text);                       // for every text frame you receive
+switch ($frame->kind()) {
+    case Frame::CREATED:
+    case Frame::UPDATED:
+        echo $frame->event()?->data?->title, "\n";
+        break;
+    case Frame::PREEMPTED:
+        echo $frame->preempted()?->reason, "\n";     // connection_limit: stop; quota_exceeded: wait 1 h
+        break;
+    case Frame::ERROR:
+        echo $frame->error()?->code(), "\n";         // VALIDATION_FAILED: stop
+        break;
+}
+```
+
+- `Subscribe::raw([...])` builds the message for `wss://wss.finlight.me/raw`: articles before enrichment, keys
+  `query`, `sources`, `excludeSources`, `language`, `includeUpdates`. There is no `include` on raw.
+- `Frame::decode()` reads v3 frames and the v2 control frames the server sends before your first subscribe.
+  Kinds: `created`, `updated`, `other` (an event this SDK does not know, skip it), `admitted`, `pong`,
+  `preempted`, `error`.
+- Rules for your loop. Send `{"action":"ping","t":<epoch ms>}` every 25 s. With no pong (either form) for
+  60 s, close and reconnect. Open a fresh connection after 115 minutes. After every reconnect send the same
+  subscribe. Drop duplicates by event, `data.id` and a hash of `data`. These values are in `FinlightConfig`
+  (`pingInterval`, `watchdogTimeout`, `rotationInterval`).
+- Stop for good on: dial 401, dial 403 "Your subscription does not include WebSockets", `VALIDATION_FAILED`,
+  `connection.preempted` with reason `connection_limit`. Reconnect with a growing wait on other closes, 5xx,
+  `HANDSHAKE_FAILED` and `SEARCH_FAILED`; wait at least 60 s after dial 403 "Too many concurrent
+  connections" or 429. Only log `PING_ON_DEFAULT_ROUTE`, `INTERNAL_ERROR` and unknown codes.
+- When the monthly WebSocket quota is used up (dial 403 "WebSocket quota exceeded", or `connection.preempted`
+  with reason `quota_exceeded`), try again once per hour until it works (`quotaReconnect`,
+  `quotaReconnectInterval`).
+- Nothing is loaded for you after a reconnect. Fill gaps with `articles->searchAll()` from the last
+  `availableAt` you saw (raw: `firstSeenAt`).
+
+Limits to know:
+
+- Your plan's connection limit is shared by enriched, raw and older SDK connections. Send `x-takeover: true`
+  (`Subscribe::dialHeaders($key, takeover: true)`) to replace your oldest connection.
+- The server closes connections after 2 hours.
+- Right after subscribing, the server sends the newest matching article once (also after every reconnect).
+  It can be old.
+- Live frames over 32,000 bytes are dropped by the server without notice. Fetch those with `articles->get()`.
+- `connection.admitted` arrives before the server checks the subscribe. It does not mean it was accepted.
 
 ## Webhooks
 
-finlight signs every delivery with HMAC-SHA256. `WebhookService` verifies the signature, enforces a five-minute replay window when a timestamp header is present, and hands back a parsed `Article`.
-
-It is static — no client instance and no API key required.
-
-> **The body must be the raw, unparsed request bytes.** Any middleware that decodes and re-encodes JSON before you read it will invalidate the signature.
-
-### Plain PHP
+finlight signs every webhook. Verify it with the **raw** request body, before parsing anything:
 
 ```php
-use Finlight\Exception\WebhookVerificationException;
-use Finlight\Service\WebhookService;
+use Finlight\WebhookVerificationException;
+use Finlight\Webhooks;
+use Finlight\WrongPayloadVersion;
 
+$rawBody = file_get_contents('php://input');
 try {
-    $article = WebhookService::constructEvent(
-        file_get_contents('php://input'),
-        $_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] ?? '',
-        getenv('FINLIGHT_WEBHOOK_SECRET') ?: '',
-        $_SERVER['HTTP_X_WEBHOOK_TIMESTAMP'] ?? null,
-    );
+    $result = Webhooks::constructEvent($rawBody, $_SERVER, getenv('FINLIGHT_WEBHOOK_SECRET'));
 } catch (WebhookVerificationException $e) {
-    http_response_code(400);
+    http_response_code(400);                 // never 410
     exit;
 }
-
-// Acknowledge fast, process asynchronously.
-http_response_code(200);
-```
-
-### Laravel
-
-```php
-use Finlight\Exception\WebhookVerificationException;
-use Finlight\Service\WebhookService;
-use Illuminate\Http\Request;
-
-Route::post('/webhooks/finlight', function (Request $request) {
-    try {
-        $article = WebhookService::constructEvent(
-            $request->getContent(),
-            $request->header('X-Webhook-Signature', ''),
-            config('services.finlight.webhook_secret'),
-            $request->header('X-Webhook-Timestamp'),
-        );
-    } catch (WebhookVerificationException) {
-        abort(400);
-    }
-
-    ProcessFinlightArticle::dispatch($article->link);
-
-    return response()->noContent();
-});
-```
-
-### Symfony
-
-```php
-#[Route('/webhooks/finlight', methods: ['POST'])]
-public function handle(Request $request): Response
-{
-    try {
-        $article = WebhookService::constructEvent(
-            $request->getContent(),
-            $request->headers->get('X-Webhook-Signature', ''),
-            $this->finlightWebhookSecret,
-            $request->headers->get('X-Webhook-Timestamp'),
-        );
-    } catch (WebhookVerificationException) {
-        return new Response(status: 400);
-    }
-
-    $this->bus->dispatch(new IngestArticle($article->link));
-
-    return new Response(status: 204);
+if ($result instanceof WrongPayloadVersion) {
+    keep_for_later($result->raw);            // an old v2 body: answer 2xx anyway
+    http_response_code(204);
+    exit;
 }
+if (already_seen($result->eventId)) {         // deliveries can repeat: deduplicate on eventId
+    http_response_code(204);
+    exit;
+}
+http_response_code(204);                      // answer within 5 s, work afterwards
+fastcgi_finish_request();
+process($result->data);
 ```
+
+- `$headers` can be `$_SERVER`, `getallheaders()`, a PSR-7 request, or a framework header bag. Names are
+  matched without regard to case. `constructEventFromValues($rawBody, $signature, $timestamp, $secret)`
+  takes the two header values; `verifySignature()` only checks.
+- The timestamp must be within 300 s (`tolerance`) in both directions.
+- `$result->isTest()` is true for the dashboard test webhook. It is not cut by your plan.
+- Never answer with 410: it disables the webhook at once. Ten non-2xx answers in a row disable it too. A
+  `WrongPayloadVersion` you do not handle ends in a 500, so handle it.
+
+Getting the raw body:
+
+| Framework | Raw body | Headers |
+|---|---|---|
+| Plain PHP | `file_get_contents('php://input')` | `$_SERVER` |
+| Laravel | `$request->getContent()` | `$request->headers->all()` |
+| Symfony | `$request->getContent()` | `$request->headers->all()` |
+| PSR-7 (Slim, Mezzio) | `$request->getBody()` | `$request` |
+
+Switching a webhook to v3: deploy this SDK first; answer `WrongPayloadVersion` with 2xx and keep its `raw`;
+then switch the webhook to `payloadVersion` 3 in the dashboard; then wait about 2 hours, because retries
+queued before the switch still arrive in the old format.
+
+## Errors and retries
+
+Every exception the SDK throws implements `FinlightException` and has `kind()`.
+
+| Exception | `kind()` | When |
+|---|---|---|
+| `FinlightApiException` | `api` | The API answered with an error. `status()`, `code()`, `type()`, `title()`, `detail()`, `requestId()`, `errors()`, `apiKind()`, `raw()`. One subclass per code: `ValidationFailedException`, `CursorInvalidException`, `CursorMismatchException`, `UnauthorizedException`, `ForbiddenException`, `NotFoundException`, `RateLimitedException`, `InternalServerException`. Unknown codes stay on the base class (`apiKind()` `other`). |
+| `RateLimitedException` | `api` | `limitType()` is `monthly`, `burst`, `unknown` or a newer value; `retryAfter()` in seconds. |
+| `FinlightValidationException` | `validation` | A request was rejected locally (also an `InvalidArgumentException`). |
+| `FinlightNetworkException`, `FinlightTimeoutException` | `network`, `timeout` | Network failure or timeout. The original error is `getPrevious()`. |
+| `FinlightDecodeException` | `decode` | An answer, frame or webhook body could not be read. |
+| `WebhookVerificationException` | `webhook_verification` | A webhook failed verification (`reason()`). |
+
+Retries: 5xx answers, network errors and timeouts are retried up to 3 times with growing waits, the
+search included. 400, 401, 403, 404 and a monthly 429 are never retried: a monthly 429 fails at once, also
+inside `searchAll()`. A burst 429 waits `Retry-After` seconds (10 without the header) and tries once more;
+set `retryOnBurst: 'off'` to turn that off. Every call sends its own `X-Request-Id`, the same on each retry.
+`totalTimeout` caps a whole call, retries and the burst wait included; use it under PHP-FPM.
 
 ## Configuration
 
 ```php
-use Finlight\Config;
 use Finlight\FinlightClient;
+use Finlight\FinlightConfig;
 
-$client = new FinlightClient(new Config(
-    apiKey: 'your-api-key',
-    baseUrl: 'https://api.finlight.me',
-    timeoutMs: 5000,
-    retryCount: 3,
+$client = new FinlightClient(new FinlightConfig(
+    apiKey: 'YOUR_API_KEY',
+    baseUrl: 'https://api.finlight.me',   // a trailing slash is fine
+    wssUrl: 'wss://wss.finlight.me',      // raw streams use <wssUrl>/raw
+    timeout: 30.0,                        // seconds per attempt
+    totalTimeout: null,                   // optional cap per call, retries included
+    maxRetries: 3,
+    retryOnBurst: 'once',                 // or 'off'
+    maxPages: 10,
+    companyCacheSize: 256,                // 0 turns the company cache off
+    httpClient: null,                     // your own PSR-18 client
 ));
 ```
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `apiKey` | — | Required. Sent as the `X-API-KEY` header |
-| `baseUrl` | `https://api.finlight.me` | API base URL |
-| `timeoutMs` | `5000` | Applies to the HTTP client this library creates for you |
-| `retryCount` | `3` | **Total** attempts, so the default is one call plus two retries |
+| Key | Default | |
+|---|---|---|
+| `apiKey` | required | |
+| `baseUrl` | `https://api.finlight.me` | |
+| `wssUrl` | `wss://wss.finlight.me` | raw: `/raw` |
+| `timeout` | 30 s | per attempt |
+| `totalTimeout` | none | per call |
+| `maxRetries` | 3 | |
+| `retryBaseDelay`, `retryMaxDelay` | 0.5 s, 8 s | |
+| `retryOnBurst`, `burstWait` | `once`, 10 s | `burstWait` only without `Retry-After` |
+| `maxPages` | 10 | |
+| `maxResponseBytes` | 32 MiB | |
+| `companyCacheSize` | 256 | |
+| `pingInterval`, `watchdogTimeout`, `rotationInterval` | 25 s, 60 s, 115 min | for your socket loop |
+| `reconnectBaseDelay`, `reconnectMaxDelay`, `longBackoff` | 1 s, 30 s, 60 s | for your socket loop |
+| `quotaReconnect`, `quotaReconnectInterval` | on, 1 h | for your socket loop |
+| `searchFailedThreshold`, `dedupeCacheSize` | 5, 1000 | for your socket loop |
+| `maxMessageBytes`, `connectTimeout` | 32 MiB, 30 s | for your socket loop |
+| `logger` | silent | PSR-3 |
+| `clock` | system clock | PSR-20; a clock with `sleep()` is used for the waits |
+| `httpClient`, `requestFactory`, `streamFactory` | Guzzle or discovery | PSR-18, PSR-17 |
 
-### Bringing your own HTTP client
+All times are seconds as `float`. With your own `httpClient`, its timeouts, proxies and middleware apply;
+do not add retry middleware, because every attempt costs quota. `totalTimeout` is still checked between
+attempts.
 
-Any PSR-18 client works. Inject it to control timeouts, proxies, middleware or logging:
+## Logging
 
-```php
-use Finlight\Config;
-use Finlight\FinlightClient;
-use GuzzleHttp\Client as Guzzle;
-use Nyholm\Psr7\Factory\Psr17Factory;
+Pass a PSR-3 `logger` to see what the SDK does. Without one it is silent. It logs retries (info), the burst
+wait, skipped entries and a stopped `searchAll()` (warning), and each request with its request id (debug).
+Messages start with `finlight:`. It never logs or puts into exception messages the API key, the webhook
+secret, signatures or bodies, and `var_dump()` of the config shows the key as `***`. The SDK never writes
+to stdout and installs no handlers.
 
-$factory = new Psr17Factory();
+## Data notes
 
-$client = new FinlightClient(
-    new Config(apiKey: 'your-api-key'),
-    new Guzzle(['timeout' => 10]),
-    $factory,
-    $factory,
-);
-```
+- Old articles can carry `publishedAt` `"1970-01-01T00:00:00.000Z"`. It is delivered as sent.
+- Empty texts come as `null` (`summary`, `content`).
+- Articles tagged before roles existed have `role` and `relevance` `null` and `events` `[]`.
+- `articles->get($id)` answers 404 for articles indexed before ids existed. Use `getByLink()`.
+- `availableAt` is `null` on older articles and always `null` on raw streams.
 
-When you inject a client, `timeoutMs` no longer applies — PSR-18 has no portable timeout setting, so configure it on your own client.
+## Migrating from 1.x
 
-## Errors
+The full guide is on [docs.finlight.me](https://docs.finlight.me/migration/v2-to-v3). The short version:
 
-Everything this library throws implements `Finlight\Exception\FinlightException`, so one catch block covers the lot.
+| 1.x | 2.x |
+|---|---|
+| `new Config('key', timeoutMs: 5000)` | `new FinlightConfig(apiKey: 'key', timeout: 5.0)` |
+| `$client->articles->fetchArticles(new GetArticlesParams(...))` | `$client->articles->search([...])`, `searchAll([...])` |
+| `fetchArticleByLink(new GetArticleByLinkParams(...))` | `getByLink($link, include: [...])`, `get($id)` |
+| `page` / `pageSize` | `limit` / `cursor` |
+| `includeContent`, `includeEntities` | `'include' => ['content', 'companies', 'events']` |
+| `OrderBy::PublishDate`, `SortOrder::Desc` (enums) | `'orderBy' => 'publishedAt'`, `'order' => 'desc'` (strings) |
+| `language` | `languages` (a list) |
+| `$article->publishDate`, `createdAt`, `revisedDate` (DateTime) | `publishedAt`, `firstSeenAt`, `revisedAt` (strings), `publishedAtTime()` |
+| `$article->images` | `$article->media[]->url` |
+| `$article->source` (string) | `$article->source->domain` |
+| `$article->sentiment`, `confidence` | `$article->sentiment->label`, `->confidence` |
+| `$client->sources->getSources()` | `$client->sources->list()` |
+| `WebhookService::constructEvent($body, $sig, $secret, $ts)` | `Webhooks::constructEvent($body, $headers, $secret)` |
+| webhook `isUpdate` | `$event->event === 'article.updated'` |
+| `ApiException`, `AuthenticationException`, `RateLimitException`, `TransportException` | `FinlightApiException`, `UnauthorizedException` / `ForbiddenException`, `RateLimitedException`, `FinlightNetworkException` |
 
-| Exception | When |
-| --- | --- |
-| `AuthenticationException` | HTTP 401 / 403 — key invalid or plan lacks access |
-| `NotFoundException` | HTTP 404 |
-| `RateLimitException` | HTTP 429 after retries; carries `retryAfterSeconds` |
-| `ApiException` | Any other non-2xx; carries `statusCode` and `responseBody` |
-| `TransportException` | No response at all — DNS, connection, TLS, timeout |
-| `MalformedResponseException` | A 2xx body missing a required field |
-| `WebhookVerificationException` | Signature, timestamp or payload rejected |
-| `ConfigurationException` | No PSR-18 client or PSR-17 factory available at construction |
-
-```php
-use Finlight\Exception\FinlightException;
-use Finlight\Exception\RateLimitException;
-
-try {
-    $response = $client->articles->fetchArticles($params);
-} catch (RateLimitException $e) {
-    sleep($e->retryAfterSeconds ?? 60);
-} catch (FinlightException $e) {
-    logger()->error('finlight request failed', ['error' => $e->getMessage()]);
-}
-```
-
-### Retries
-
-HTTP `429`, `500`, `502`, `503` and `504` are retried automatically with exponential backoff (500 ms, 1 s, 2 s, …, capped at 30 s per pause), matching the official TypeScript client. Transport failures are **not** retried — they surface immediately as a `TransportException`.
-
-## Scope
-
-This client covers the REST API and webhook verification.
-
-**WebSocket streaming is intentionally not included.** PHP's request-response model is a poor fit for a long-lived stream, and doing it properly would require ReactPHP or Ratchet plus a supervised worker process. If you need the live stream, use the TypeScript, Go, Python or .NET clients — see [docs.finlight.me](https://docs.finlight.me). For push delivery into a PHP application, webhooks are the supported path.
+Switching your webhook takes four steps: deploy 2.x; answer `WrongPayloadVersion` with 2xx and keep `raw`;
+switch the webhook to `payloadVersion` 3 in the dashboard; wait about 2 hours for old retries to end.
 
 ## Development
 
 ```bash
 composer install
-composer test          # PHPUnit
-composer stan          # PHPStan at max level, checked against PHP 8.1–8.4
+composer test                  # unit and conformance tests, no network
+composer stan                  # PHPStan, level max
+composer sync-conformance -- --from=<monorepo>/shared/contracts/api-v3
+composer check                 # kit MANIFEST, case map, README skeleton, no v1/v2 leftovers
 ```
 
-CI runs the suite against PHP 8.1 through 8.4.
-
-## Releasing
-
-The package is distributed through [Packagist](https://packagist.org/packages/finlight/client), which reads this repository directly — there is no upload step.
-
-1. Bump `FinlightClient::VERSION` and update `CHANGELOG.md`.
-2. Tag the release: `git tag v1.0.1 && git push --tags`.
-3. Packagist picks up the tag automatically once the GitHub integration is enabled (Packagist → your profile → *Settings* → GitHub integration, or the package's *Update* button for a manual sync).
+`CONFORMANCE.md` maps every case of the contract kit (`conformance/`, version in `CONTRACT_VERSION`,
+checked against `MANIFEST`) to its test. Live tests run only against dev and need `FINLIGHT_API_KEY`,
+`FINLIGHT_BASE_URL` and `FINLIGHT_WSS_URL`: `php scripts/live-smoke.php`. They refuse production hosts.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT

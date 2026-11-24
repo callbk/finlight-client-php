@@ -1,6 +1,6 @@
 {
     "name": "finlight/client",
-    "description": "PHP client for the finlight.me financial news API - search sentiment-scored, entity-tagged market news and verify finlight webhooks.",
+    "description": "BREAKING: 2.x speaks finlight API v3 only (REST /v3, WebSocket payloadVersion 3, v3 webhooks). Stay on 1.x for API v2. PHP client for the finlight.me financial news API.",
     "type": "library",
     "keywords": [
         "finlight",
@@ -28,21 +28,23 @@
         "source": "https://github.com/callbk/finlight-client-php"
     },
     "require": {
-        "php": "^8.1",
+        "php": "^8.2",
         "ext-json": "*",
         "php-http/discovery": "^1.19",
+        "psr/clock": "^1.0",
         "psr/http-client": "^1.0",
         "psr/http-factory": "^1.0",
-        "psr/http-message": "^1.1 || ^2.0"
+        "psr/http-message": "^1.1 || ^2.0",
+        "psr/log": "^1.1 || ^2.0 || ^3.0"
     },
     "require-dev": {
         "guzzlehttp/guzzle": "^7.8",
         "nyholm/psr7": "^1.8",
         "phpstan/phpstan": "^2.0",
-        "phpunit/phpunit": "^10.5 || ^11.0"
+        "phpunit/phpunit": "^11.5"
     },
     "suggest": {
-        "guzzlehttp/guzzle": "A PSR-18 HTTP client. Used automatically when present, which is how the configured timeout is applied."
+        "guzzlehttp/guzzle": "A PSR-18 HTTP client. Used automatically when present; it is how the configured timeouts are applied."
     },
     "autoload": {
         "psr-4": {
@@ -57,16 +59,22 @@
     "config": {
         "sort-packages": true,
         "allow-plugins": {
-            "php-http/discovery": true
+            "php-http/discovery": false
         }
     },
     "scripts": {
         "test": "phpunit",
-        "stan": "phpstan analyse"
+        "stan": "phpstan analyse --no-progress --memory-limit=1G",
+        "sync-conformance": "php scripts/sync-conformance.php",
+        "check": [
+            "php scripts/check-conformance.php",
+            "php scripts/check-readme.php",
+            "php scripts/check-scope.php"
+        ]
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "1.0.x-dev"
+            "dev-main": "2.x-dev"
         }
     }
 }

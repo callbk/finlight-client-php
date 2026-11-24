@@ -4,7 +4,56 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **Breaking release.** 2.x speaks only the finlight API v3. Stay on 1.x (`finlight/client:^1.0`) for API v2.
+
 ## [Unreleased]
+
+## [2.0.0] - unreleased
+
+**Breaking release.** 2.0.0 speaks only the finlight API v3 (REST `/v3`, WebSocket `payloadVersion` 3,
+v3 webhooks). Code written for 1.x does not run unchanged. To stay on 1.x, require `finlight/client:^1.0`.
+Migration guide: https://docs.finlight.me/migration/v2-to-v3
+
+Contract kit: 3.0.0-rc.3.
+
+### Removed
+
+- Everything from API v1 and v2: `Config`, `ArticleService`, `SourceService`, `WebhookService`, the
+  `Model\` and `Request\` classes, the backed enums (`ArticleCategory`, `OrderBy`, `SortOrder`) and the
+  old exceptions (`ApiException`, `AuthenticationException`, `RateLimitException`, `TransportException`,
+  `ConfigurationException`, `MalformedResponseException`).
+- PHP 8.1.
+
+### Added
+
+- `FinlightClient` with `articles->search()`, `articles->searchAll()` (frozen request, `maxPages`,
+  `truncated()`, `nextCursor()`), `articles->get()`, `articles->getByLink()`, `companies->search()`,
+  `companies->getMany()`, `companies->get()` (ETag revalidation, `ifNoneMatch:`) and `sources->list()`.
+  Parameters are arrays with the API keys; unknown keys and wrong shapes are refused before sending.
+- `FinlightConfig` with every key of the shared config table, PSR-18/PSR-17 injection, a PSR-3 logger and a
+  PSR-20 clock. `User-Agent: finlight-client-php/2.0.0` and `x-client-version` on every request.
+- Tolerant models (`Article`, `Company`, `EventTag`, `CompanyRecord`, `Source`, ...) that keep the raw JSON
+  (`rawJson()`), write back their wire form (`toWire()`), keep times as sent with strict `...Time()` parsers,
+  and tell absent, `null` and `[]` apart (`contentPresent()`, `sentimentPresent()`, `companiesPresent()`,
+  `eventsPresent()`). A broken entry of a list is skipped and kept in `skipped`.
+- Open vocabularies as string constants (`EventType`, `CompanyRole`, `IncludeBlock`, ...).
+- `Subscribe::enriched()`, `Subscribe::raw()` and `Subscribe::dialHeaders()` to build WebSocket subscribe
+  messages and dial headers for your own socket loop, and `Frame::decode()` for v3 frames and the v2
+  control frames sent before the first subscribe. There is no WebSocket transport.
+- `Webhooks::constructEvent()`, `Webhooks::constructEventFromValues()` and `Webhooks::verifySignature()`.
+  Headers from `$_SERVER`, arrays, header bags or PSR-7. A correctly signed body that is not
+  `payloadVersion` 3 returns `WrongPayloadVersion` (answer it with 2xx).
+- Errors: `FinlightApiException` with one subclass per problem code, `FinlightValidationException`,
+  `FinlightNetworkException`, `FinlightTimeoutException`, `FinlightDecodeException`,
+  `WebhookVerificationException`, all behind the `FinlightException` interface with `kind()`.
+- Retries: up to 3 for 5xx, network errors and timeouts; never for 400, 401, 403, 404 and a monthly 429,
+  which fails at once, also inside `searchAll()`. A burst 429 waits `Retry-After` (10 s without it) and
+  retries once; on by default, `retryOnBurst: 'off'` turns it off. `totalTimeout` caps a whole call.
+- Conformance suite: every case of the shared API v3 contract kit runs in PHPUnit (`CONFORMANCE.md`).
+
+### Requirements
+
+- PHP 8.2+ (64-bit), `php-http/discovery` 1.19+, `psr/log` 1.1+, `psr/clock` 1.0+.
 
 ## [1.0.1] - 2026-08-11
 
