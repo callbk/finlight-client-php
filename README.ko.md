@@ -100,6 +100,8 @@ $sources = $client->sources->list();
 
 - 찾지 못하면 `NotFoundException`을 던집니다. 빈 결과가 아닙니다.
 - 기사 id 도입 전에 색인된 기사는 id로 조회하면 404가 됩니다. 이런 기사는 `getByLink()`를 쓰세요.
+- 조회 호출은 크레딧을 씁니다. 성공한 `companies` 또는 `sources` 호출은 월간 할당량에서 1 크레딧을 차감합니다(`getMany()`는
+  요청당 한 번). 304 재검증과 오류 응답은 무료입니다. 월간 할당량과 버스트 제한이 적용되므로 여기서도 429가 날 수 있습니다.
 - `companies` 호출에는 `entityAccess` 권한이 필요합니다(없으면 `ForbiddenException`).
 - `companies->get()`은 최근 레코드 256개를 보관하고 ETag로 다시 검증합니다. 304 응답이면 보관한 레코드를 돌려줍니다.
   `ifNoneMatch:`를 넘기면 캐시를 직접 관리하며, 이때 304는 `null`을 돌려줍니다.

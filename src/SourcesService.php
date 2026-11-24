@@ -20,7 +20,8 @@ final class SourcesService
     }
 
     /**
-     * GET /v3/sources: every source your plan can use, sorted by domain. Not metered.
+     * GET /v3/sources: every source your plan can use, sorted by domain. Each successful call costs
+     * 1 credit from the monthly quota; errors are free. The monthly quota and the burst limit apply (429).
      */
     public function list(): SourceList
     {

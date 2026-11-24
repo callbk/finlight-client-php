@@ -100,6 +100,9 @@ $sources = $client->sources->list();
 
 - A miss throws `NotFoundException`. It is never an empty result.
 - Articles indexed before article ids existed answer 404 by id. Use `getByLink()` for them.
+- Lookups cost credits: each successful `companies` or `sources` call costs 1 credit from the monthly quota
+  (`getMany()` once per request). A 304 revalidation and errors are free. The monthly quota and the burst
+  limit apply, so a 429 is possible here too.
 - `companies` calls need the `entityAccess` entitlement (`ForbiddenException` otherwise).
 - `companies->get()` keeps the last 256 records and revalidates them with their ETag; a 304 answer
   returns the kept record. Pass `ifNoneMatch:` to manage the cache yourself: a 304 then returns `null`.

@@ -10,7 +10,8 @@ use Finlight\Internal\Transport;
 
 /**
  * $client->companies: search, getMany, get. Needs the entityAccess entitlement (ForbiddenException
- * otherwise). These calls are not metered.
+ * otherwise). Each successful call costs 1 credit from the monthly quota (getMany too, however many ids);
+ * a 304 revalidation and errors are free. The monthly quota and the burst limit apply (429).
  */
 final class CompaniesService
 {

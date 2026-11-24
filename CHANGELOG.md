@@ -14,7 +14,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 v3 webhooks). Code written for 1.x does not run unchanged. To stay on 1.x, require `finlight/client:^1.0`.
 Migration guide: https://docs.finlight.me/migration/v2-to-v3
 
-Contract kit: 3.0.0-rc.4.
+Contract kit: 3.0.0-rc.5.
 
 ### Removed
 
@@ -29,6 +29,7 @@ Contract kit: 3.0.0-rc.4.
 - `FinlightClient` with `articles->search()`, `articles->searchAll()` (frozen request, `maxPages`,
   `truncated()`, `nextCursor()`), `articles->get()`, `articles->getByLink()`, `companies->search()`,
   `companies->getMany()`, `companies->get()` (ETag revalidation, `ifNoneMatch:`) and `sources->list()`.
+  Each successful lookup costs 1 credit (`getMany()` once per request); a 304 and errors are free.
   Parameters are arrays with the API keys; unknown keys and wrong shapes are refused before sending.
 - `sourceTypes` and `excludeSourceTypes` on `articles->search()`, `articles->searchAll()`,
   `Subscribe::enriched()` and `Subscribe::raw()`. Articles of unclassified sources never match `sourceTypes`
