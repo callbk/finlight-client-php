@@ -30,8 +30,10 @@ Contract kit: 3.0.0-rc.4.
   `truncated()`, `nextCursor()`), `articles->get()`, `articles->getByLink()`, `companies->search()`,
   `companies->getMany()`, `companies->get()` (ETag revalidation, `ifNoneMatch:`) and `sources->list()`.
   Parameters are arrays with the API keys; unknown keys and wrong shapes are refused before sending.
-- `sourceTypes` and `excludeSourceTypes` on `articles->search()` and `articles->searchAll()` (not on
-  streams). Articles of unclassified sources never match `sourceTypes` and are kept by `excludeSourceTypes`.
+- `sourceTypes` and `excludeSourceTypes` on `articles->search()`, `articles->searchAll()`,
+  `Subscribe::enriched()` and `Subscribe::raw()`. Articles of unclassified sources never match `sourceTypes`
+  and are kept by `excludeSourceTypes`. On streams the SDK does not check the values; an unknown one is a
+  `VALIDATION_FAILED` from the server. Needs a server that knows these keys; an older one ignores them.
 - `FinlightConfig` with every key of the shared config table, PSR-18/PSR-17 injection, a PSR-3 logger and a
   PSR-20 clock. `User-Agent: finlight-client-php/2.0.0` and `x-client-version` on every request.
 - Tolerant models (`Article`, `Company`, `EventTag`, `CompanyRecord`, `Source`, ...) that keep the raw JSON

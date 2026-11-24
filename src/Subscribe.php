@@ -28,8 +28,9 @@ final class Subscribe
      * Subscribe message for the enriched endpoint (wss://wss.finlight.me).
      *
      * Keys: include, query, sources, excludeSources, optInSources, language, tickers, countries,
-     * categories, excludeEmptyContent, includeUpdates. Without includeUpdates no article.updated
-     * is ever delivered.
+     * categories, sourceTypes, excludeSourceTypes, excludeEmptyContent, includeUpdates. Without
+     * includeUpdates no article.updated is ever delivered. sourceTypes and excludeSourceTypes take
+     * SourceType values, like search; an unknown value is a VALIDATION_FAILED from the server.
      *
      * @param array<string, mixed> $params
      */
@@ -40,8 +41,8 @@ final class Subscribe
 
     /**
      * Subscribe message for the raw endpoint (wss://wss.finlight.me/raw): articles before
-     * enrichment. Keys: query, sources, excludeSources, language, includeUpdates. There is no
-     * include on raw.
+     * enrichment. Keys: query, sources, excludeSources, sourceTypes, excludeSourceTypes, language,
+     * includeUpdates. There is no include on raw.
      *
      * @param array<string, mixed> $params
      */

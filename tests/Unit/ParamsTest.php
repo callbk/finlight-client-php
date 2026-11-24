@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Finlight\Tests\Unit;
 
 use Finlight\FinlightValidationException;
+use Finlight\SourceType;
 use Finlight\Subscribe;
 use Finlight\Tests\Support\MockHttpClient;
 use Finlight\Tests\Support\TestClient;
@@ -213,8 +214,7 @@ final class ParamsTest extends TestCase
         self::assertSame(3, $frame['payloadVersion']);
         self::assertIsString($frame['clientNonce']);
 
-        // sourceTypes and excludeSourceTypes are search filters only; streams do not take them.
-        foreach (['payloadVersion' => '3', 'clientNonce' => 'x', 'includeContent' => true, 'includeEntities' => true, 'extended' => true, 'action' => 'ping', 'type' => 'ping', 'languages' => ['en'], 'sourceTypes' => ['blog'], 'excludeSourceTypes' => ['blog']] as $key => $value) {
+        foreach (['payloadVersion' => '3', 'clientNonce' => 'x', 'includeContent' => true, 'includeEntities' => true, 'extended' => true, 'action' => 'ping', 'type' => 'ping', 'languages' => ['en']] as $key => $value) {
             try {
                 Subscribe::enriched([$key => $value, 'query' => 'q']);
                 self::fail('not refused: ' . $key);
@@ -222,12 +222,30 @@ final class ParamsTest extends TestCase
                 self::assertSame($key, $e->param());
             }
         }
-        foreach (['include' => ['content'], 'tickers' => ['A'], 'countries' => ['US'], 'optInSources' => ['a'], 'categories' => ['x'], 'excludeEmptyContent' => true, 'sourceTypes' => ['blog'], 'excludeSourceTypes' => ['blog']] as $key => $value) {
+        foreach (['include' => ['content'], 'tickers' => ['A'], 'countries' => ['US'], 'optInSources' => ['a'], 'categories' => ['x'], 'excludeEmptyContent' => true] as $key => $value) {
             try {
                 Subscribe::raw([$key => $value]);
                 self::fail('raw accepted ' . $key);
             } catch (FinlightValidationException $e) {
                 self::assertSame($key, $e->param());
+            }
+        }
+        // sourceTypes and excludeSourceTypes are lists of strings on both streams, sent only when set.
+        $set = ['sourceTypes' => [SourceType::NEWSWIRE], 'excludeSourceTypes' => [SourceType::BLOG]];
+        $want = ['payloadVersion' => 3, 'sourceTypes' => ['newswire'], 'excludeSourceTypes' => ['blog'], 'clientNonce' => 'n'];
+        self::assertSame($want, json_decode(Subscribe::enriched($set, 'n'), true));
+        self::assertSame($want, json_decode(Subscribe::raw($set, 'n'), true));
+        $unset = ['sourceTypes' => null, 'excludeSourceTypes' => null];
+        self::assertSame(['payloadVersion' => 3, 'clientNonce' => 'n'], json_decode(Subscribe::enriched($unset, 'n'), true));
+        self::assertSame(['payloadVersion' => 3, 'clientNonce' => 'n'], json_decode(Subscribe::raw($unset, 'n'), true));
+        foreach (['sourceTypes' => 'blog', 'excludeSourceTypes' => [1]] as $key => $value) {
+            foreach ([false, true] as $raw) {
+                try {
+                    $raw ? Subscribe::raw([$key => $value]) : Subscribe::enriched([$key => $value]);
+                    self::fail('accepted ' . $key);
+                } catch (FinlightValidationException $e) {
+                    self::assertSame($key, $e->param());
+                }
             }
         }
         // A string that is not UTF-8 is refused by name, never as a raw JsonException.

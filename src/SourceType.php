@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Finlight;
 
 /**
- * Known values of source.type and of the sourceTypes / excludeSourceTypes search filters.
+ * Known values of source.type and of the sourceTypes / excludeSourceTypes filters (search, streams).
  * Open: unknown values are kept as sent.
  *
  * Values are plain strings. Compare with ===. ALL lists the values known to this SDK version.

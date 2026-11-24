@@ -160,7 +160,10 @@ switch ($frame->kind()) {
 ```
 
 - `Subscribe::raw([...])` は `wss://wss.finlight.me/raw` 向けのメッセージを組み立てます。エンリッチ前の記事で、キーは
-  `query`、`sources`、`excludeSources`、`language`、`includeUpdates` です。raw には `include` がありません。
+  `query`、`sources`、`excludeSources`、`sourceTypes`、`excludeSourceTypes`、`language`、`includeUpdates` です。
+  raw には `include` がありません。
+- どちらのストリームも、検索と同じく `sourceTypes` と `excludeSourceTypes`（`SourceType` の値）を受け付けます。SDK は
+  値を検査しません。未知の値ならサーバーが `VALIDATION_FAILED` を送り、接続を閉じます。
 - `Frame::decode()` は v3 のフレームと、最初の購読前にサーバーが送る v2 形式の制御フレームを読み取ります。種類：`created`、
   `updated`、`other`（この SDK が知らないイベント。読み飛ばしてください）、`admitted`、`pong`、`preempted`、`error`。
 - ループのルール：25 秒ごとに `{"action":"ping","t":<epoch ms>}` を送ります。60 秒間どちらの形式の pong も来なければ、
@@ -332,9 +335,9 @@ PSR-3 の `logger` を渡すと SDK の動作を確認できます。渡さな�
 - id 導入前にインデックスされた記事では、`articles->get($id)` が 404 になります。`getByLink()` を使ってください。
 - 古い記事の `availableAt` は `null` で、raw ストリームでは常に `null` です。
 - `source->type` と `Source::$type` は `SourceType` の値を取ります。ソースが未分類なら `null` です。ソースタイプ導入前に
-  インデックスされた記事でも `source->type` は `null` です。`search()` と `searchAll()` では `sourceTypes` と
-  `excludeSourceTypes` で絞り込めます。未分類のソースは `sourceTypes` に一致せず、`excludeSourceTypes` では残ります。
-  ストリームにはソースタイプの絞り込みはありません。
+  インデックスされた記事でも `source->type` は `null` です。`search()`、`searchAll()`、`Subscribe::enriched()`、
+  `Subscribe::raw()` では `sourceTypes` と `excludeSourceTypes` で絞り込めます。未分類のソースは `sourceTypes` に
+  一致せず、`excludeSourceTypes` では残ります。v3 の Webhook も同じ 2 つの絞り込みを受け付けます。設定はダッシュボードで行います。
 
 ## Migrating from 1.x
 

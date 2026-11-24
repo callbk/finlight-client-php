@@ -13,6 +13,8 @@ How the cases run in PHP:
   sends, `Frame::decode()` reads what the server sends, and a reference loop without I/O
   (`tests/Support/SessionModel.php`) applies the connection rules from the README to reach the outcome.
   S-02 writes the dial headers to a TCP listener on 127.0.0.1 and reads the raw bytes.
+- S-29: `Subscribe` does not check vocabularies, so it builds the frame with the unknown `sourceTypes` value;
+  the test checks the server's `VALIDATION_FAILED` as decoded (field `sourceTypes`, `allowedValues`).
 
 What the S cases verify of the SDK itself (PHP stops at the decoder level, by owner decision):
 
@@ -134,6 +136,7 @@ What the S cases verify of the SDK itself (PHP stops at the decoder level, by ow
 | S-26 | Dial refused: server error (ref) | `SessionsTest::testSession#S-26` |
 | S-27 | connection.preempted, reason quota_exceeded, with quotaReconnect turned off (ref) | `SessionsTest::testSession#S-27` |
 | S-28 | Dial refused: WebSocket quota exhausted, with quotaReconnect turned off (ref) | `SessionsTest::testSession#S-28` |
+| S-29 | VALIDATION_FAILED for an unknown sourceTypes value | `SessionsTest::testSession#S-29` |
 
-Total: 105 cases. 91 verify SDK code, 4 of them only up to the decoded frame `(part ref)`; 14 are
+Total: 106 cases. 92 verify SDK code, 4 of them only up to the decoded frame `(part ref)`; 14 are
 marked `(ref)` and verify only the reference loop in `tests/Support`.

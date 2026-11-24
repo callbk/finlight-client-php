@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * S-01, S-03 .. S-28: the WebSocket sessions of the kit at the decoder level. PHP has no WebSocket
+ * S-01, S-03 .. S-29: the WebSocket sessions of the kit at the decoder level. PHP has no WebSocket
  * transport; the sessions drive Subscribe (what the loop sends), Frame::decode (what it receives)
  * and a reference loop in tests/Support/SessionModel.php that applies the documented connection
  * rules. S-02 (raw header bytes) is in WsRawBytesTest.
@@ -228,6 +228,15 @@ final class SessionsTest extends TestCase
                 self::assertCount(1, $terminal, $context);
                 $this->checkError($terminal[0]['error'], $step, $context);
                 self::assertTrue($model->ended);
+                if (str_starts_with($where, 'S-29 ')) {
+                    // The SDK does not check vocabularies: the server refuses the unknown value and
+                    // the issue names the field and its allowed values.
+                    $error = $terminal[0]['error'];
+                    self::assertInstanceOf(FinlightApiException::class, $error);
+                    $issue = $error->errors()[0];
+                    self::assertSame('sourceTypes', $issue->field, $context);
+                    self::assertSame(\Finlight\SourceType::ALL, $issue->allowedValues, $context);
+                }
                 break;
             case 'noReconnect':
                 self::assertSame([], $of('reconnect'), $context);

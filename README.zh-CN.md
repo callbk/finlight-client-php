@@ -155,7 +155,9 @@ switch ($frame->kind()) {
 ```
 
 - `Subscribe::raw([...])` 为 `wss://wss.finlight.me/raw` 构建消息：未经富化的文章，键为 `query`、`sources`、
-  `excludeSources`、`language`、`includeUpdates`。raw 没有 `include`。
+  `excludeSources`、`sourceTypes`、`excludeSourceTypes`、`language`、`includeUpdates`。raw 没有 `include`。
+- 两种流都接受 `sourceTypes` 和 `excludeSourceTypes`（`SourceType` 的值），与搜索相同。SDK 不检查这些值：
+  遇到未知的值时，服务器发送 `VALIDATION_FAILED` 并关闭连接。
 - `Frame::decode()` 读取 v3 帧，以及服务器在您首次订阅之前发送的 v2 控制帧。类型：`created`、`updated`、`other`
   （本 SDK 尚不认识的事件，跳过即可）、`admitted`、`pong`、`preempted`、`error`。
 - 循环规则：每 25 秒发送 `{"action":"ping","t":<epoch ms>}`。60 秒内没有收到任何形式的 pong，则关闭并重连。115 分钟后
@@ -319,8 +321,9 @@ $client = new FinlightClient(new FinlightConfig(
 - 对于在 id 出现之前编入索引的文章，`articles->get($id)` 返回 404。请使用 `getByLink()`。
 - 旧文章的 `availableAt` 为 `null`，raw 流中始终为 `null`。
 - `source->type` 和 `Source::$type` 取 `SourceType` 的值。来源未分类时为 `null`；在来源类型出现之前编入索引的文章，
-  `source->type` 也为 `null`。在 `search()` 和 `searchAll()` 中用 `sourceTypes` 和 `excludeSourceTypes` 过滤；
-  未分类的来源永远不匹配 `sourceTypes`，并会被 `excludeSourceTypes` 保留。流没有来源类型过滤。
+  `source->type` 也为 `null`。在 `search()`、`searchAll()`、`Subscribe::enriched()` 和 `Subscribe::raw()` 中用
+  `sourceTypes` 和 `excludeSourceTypes` 过滤；未分类的来源永远不匹配 `sourceTypes`，并会被 `excludeSourceTypes` 保留。
+  v3 webhook 也接受这两个过滤条件，在控制台中设置。
 
 ## Migrating from 1.x
 

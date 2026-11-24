@@ -159,7 +159,9 @@ switch ($frame->kind()) {
 ```
 
 - `Subscribe::raw([...])`는 `wss://wss.finlight.me/raw`용 메시지를 만듭니다. 보강 전 기사이며, 키는 `query`, `sources`,
-  `excludeSources`, `language`, `includeUpdates`입니다. raw에는 `include`가 없습니다.
+  `excludeSources`, `sourceTypes`, `excludeSourceTypes`, `language`, `includeUpdates`입니다. raw에는 `include`가 없습니다.
+- 두 스트림 모두 검색과 같이 `sourceTypes`와 `excludeSourceTypes`(`SourceType` 값)를 받습니다. SDK는 값을 검사하지
+  않습니다. 알 수 없는 값이면 서버가 `VALIDATION_FAILED`를 보내고 연결을 닫습니다.
 - `Frame::decode()`는 v3 프레임과, 첫 구독 전에 서버가 보내는 v2 형식의 제어 프레임을 읽습니다. 종류: `created`,
   `updated`, `other`(이 SDK가 모르는 이벤트, 건너뛰세요), `admitted`, `pong`, `preempted`, `error`.
 - 루프 규칙: 25초마다 `{"action":"ping","t":<epoch ms>}`를 보냅니다. 60초 동안 어떤 형식의 pong도 오지 않으면 닫고 다시
@@ -329,9 +331,9 @@ PSR-3 `logger`를 넘기면 SDK의 동작을 볼 수 있습니다. 넘기지 않
 - id 도입 전에 색인된 기사는 `articles->get($id)`가 404입니다. `getByLink()`를 쓰세요.
 - 오래된 기사는 `availableAt`이 `null`이며, raw 스트림에서는 항상 `null`입니다.
 - `source->type`과 `Source::$type`은 `SourceType` 값을 가집니다. 소스가 분류되지 않았으면 `null`입니다. 소스 유형 도입 전에
-  색인된 기사도 `source->type`이 `null`입니다. `search()`와 `searchAll()`에서 `sourceTypes`와 `excludeSourceTypes`로
-  거를 수 있습니다. 분류되지 않은 소스는 `sourceTypes`에 맞지 않고 `excludeSourceTypes`에서는 남습니다.
-  스트림에는 소스 유형 필터가 없습니다.
+  색인된 기사도 `source->type`이 `null`입니다. `search()`, `searchAll()`, `Subscribe::enriched()`, `Subscribe::raw()`에서
+  `sourceTypes`와 `excludeSourceTypes`로 거를 수 있습니다. 분류되지 않은 소스는 `sourceTypes`에 맞지 않고
+  `excludeSourceTypes`에서는 남습니다. v3 웹훅도 같은 두 필터를 받으며, 설정은 대시보드에서 합니다.
 
 ## Migrating from 1.x
 

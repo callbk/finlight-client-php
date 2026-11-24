@@ -58,6 +58,8 @@ final class Params
         'tickers' => 'strings',
         'countries' => 'strings',
         'categories' => 'strings',
+        'sourceTypes' => 'strings',
+        'excludeSourceTypes' => 'strings',
         'excludeEmptyContent' => 'bool',
         'includeUpdates' => 'bool',
     ];
@@ -67,6 +69,8 @@ final class Params
         'query' => 'string',
         'sources' => 'strings',
         'excludeSources' => 'strings',
+        'sourceTypes' => 'strings',
+        'excludeSourceTypes' => 'strings',
         'language' => 'string',
         'includeUpdates' => 'bool',
     ];

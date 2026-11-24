@@ -161,7 +161,10 @@ switch ($frame->kind()) {
 ```
 
 - `Subscribe::raw([...])` builds the message for `wss://wss.finlight.me/raw`: articles before enrichment, keys
-  `query`, `sources`, `excludeSources`, `language`, `includeUpdates`. There is no `include` on raw.
+  `query`, `sources`, `excludeSources`, `sourceTypes`, `excludeSourceTypes`, `language`, `includeUpdates`.
+  There is no `include` on raw.
+- Both streams take `sourceTypes` and `excludeSourceTypes` (`SourceType` values), like search. The SDK does not
+  check the values: for an unknown one the server sends `VALIDATION_FAILED` and closes the connection.
 - `Frame::decode()` reads v3 frames and the v2 control frames the server sends before your first subscribe.
   Kinds: `created`, `updated`, `other` (an event this SDK does not know, skip it), `admitted`, `pong`,
   `preempted`, `error`.
@@ -339,8 +342,9 @@ to stdout and installs no handlers.
 - `availableAt` is `null` on older articles and always `null` on raw streams.
 - `source->type` and `Source::$type` take the `SourceType` values. They are `null` when the source is not
   classified, and `source->type` is also `null` on articles indexed before source types existed. Filter with
-  `sourceTypes` and `excludeSourceTypes` in `search()` and `searchAll()`; unclassified sources never match
-  `sourceTypes` and are kept by `excludeSourceTypes`. Streams have no source type filter.
+  `sourceTypes` and `excludeSourceTypes` in `search()`, `searchAll()`, `Subscribe::enriched()` and
+  `Subscribe::raw()`; unclassified sources never match `sourceTypes` and are kept by `excludeSourceTypes`.
+  v3 webhooks take the same two filters; you set them in the dashboard.
 
 ## Migrating from 1.x
 
