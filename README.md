@@ -168,10 +168,18 @@ switch ($frame->kind()) {
   60 s, close and reconnect. Open a fresh connection after 115 minutes. After every reconnect send the same
   subscribe. Drop duplicates by event, `data.id` and a hash of `data`. These values are in `FinlightConfig`
   (`pingInterval`, `watchdogTimeout`, `rotationInterval`).
+- At 115 minutes, dial the new connection while the old one is still open, subscribe, then close the old
+  one. When your plan is at its connection limit (for example a limit of 1), the old connection still counts
+  and the new dial is refused. If that dial is refused or fails (403, 5xx, a network error), close the old
+  connection, wait for its close reply (at most 5 s) and dial again at once. Do not report that refusal.
+  Only if this dial is refused too, wait as described below. Refusals that stop for good (below) stop here too.
 - Stop for good on: dial 401, dial 403 "Your subscription does not include WebSockets", `VALIDATION_FAILED`,
   `connection.preempted` with reason `connection_limit`, and a close with code 1008. Reconnect with a growing
   wait on other closes, 5xx, `HANDSHAKE_FAILED` and `SEARCH_FAILED`; wait at least 60 s after dial 403 "Too
   many concurrent connections" or 429. Only log `PING_ON_DEFAULT_ROUTE`, `INTERNAL_ERROR` and unknown codes.
+- The growing wait starts at `reconnectBaseDelay` (1 s), doubles up to `reconnectMaxDelay` (30 s), and starts
+  over only when a pong or an article arrives. `connection.admitted` does not count: it comes before the
+  server checks the subscribe, so a loop of admitted, then `SEARCH_FAILED` or a close, must still slow down.
 - Read the body of a refused dial when your WebSocket library gives it to you, and compare the 403 texts by
   their start. Without a readable body: 401 stops for good; 403 waits at least 60 s and reports an error.
 - Report `SEARCH_FAILED` only after 5 in a row (`searchFailedThreshold`); keep reconnecting meanwhile.

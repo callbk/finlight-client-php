@@ -166,10 +166,17 @@ switch ($frame->kind()) {
   閉じて再接続します。115 分後に新しい接続を開きます。再接続のたびに同じ購読を送ります。イベント、`data.id`、`data` の
   ハッシュで重複を除きます。これらの値は `FinlightConfig`（`pingInterval`、`watchdogTimeout`、`rotationInterval`）に
   あります。
+- 115 分になったら、古い接続を開いたまま新しい接続を開いて購読し、それから古い接続を閉じます。プランが接続数の上限に
+  達している場合（上限 1 など）、古い接続もまだ数えられるため新しい接続は拒否されます。この接続が拒否されたり失敗したり
+  した場合（403、5xx、ネットワークエラー）、古い接続を閉じ、その close の応答を待って（最大 5 秒）、すぐに接続し直します。
+  この拒否は報告しません。この接続も拒否された場合にだけ、下に書いたとおり待ちます。完全に停止する拒否（下記）はここでも停止します。
 - 次の場合は完全に停止します：接続時の 401、接続時の 403 "Your subscription does not include WebSockets"、
   `VALIDATION_FAILED`、理由が `connection_limit` の `connection.preempted`、コード 1008 での切断。その他の切断、5xx、`HANDSHAKE_FAILED`、
   `SEARCH_FAILED` では待ち時間を延ばしながら再接続します。接続時の 403 "Too many concurrent connections" または 429 の後は
   60 秒以上待ちます。`PING_ON_DEFAULT_ROUTE`、`INTERNAL_ERROR`、未知のコードはログに記録するだけです。
+- 延ばしていく待ち時間は `reconnectBaseDelay`（1 秒）から始まり、`reconnectMaxDelay`（30 秒）まで倍になっていきます。
+  最初に戻すのは pong か記事が届いたときだけです。`connection.admitted` は数えません。サーバーが購読を検査する前に届く
+  ため、admitted の後に `SEARCH_FAILED` や切断が続くループでも待ち時間を延ばす必要があります。
 - WebSocket ライブラリが拒否された接続のボディを渡してくれる場合は読み、403 のテキストは先頭で比較します。読めるボディが
   ない場合、401 は完全に停止し、403 は 60 秒以上待ってからエラーを報告します。
 - `SEARCH_FAILED` は 5 回続いたときだけ報告します（`searchFailedThreshold`）。その間も再接続を続けます。

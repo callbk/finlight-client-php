@@ -160,10 +160,16 @@ switch ($frame->kind()) {
 - 循环规则：每 25 秒发送 `{"action":"ping","t":<epoch ms>}`。60 秒内没有收到任何形式的 pong，则关闭并重连。115 分钟后
   打开新连接。每次重连后发送相同的订阅。按事件、`data.id` 和 `data` 的哈希去重。这些值在 `FinlightConfig` 中
   （`pingInterval`、`watchdogTimeout`、`rotationInterval`）。
+- 到 115 分钟时，在旧连接仍然打开的情况下建立新连接并订阅，然后关闭旧连接。如果您的套餐已达到连接上限（例如上限为 1），
+  旧连接仍被计入，新连接会被拒绝。如果这次连接被拒绝或失败（403、5xx、网络错误），请关闭旧连接，等待它的关闭回复（最多
+  5 秒），然后立即重新连接。不要报告这次拒绝。只有这次连接也被拒绝时，才按下文所述等待。会永久停止的拒绝（见下文）在这里同样停止。
 - 以下情况永久停止：连接 401、连接 403 "Your subscription does not include WebSockets"、`VALIDATION_FAILED`、原因为
   `connection_limit` 的 `connection.preempted`，以及关闭码 1008。其他关闭、5xx、`HANDSHAKE_FAILED` 和 `SEARCH_FAILED` 时以递增的等待
   重连；连接 403 "Too many concurrent connections" 或 429 后至少等待 60 秒。`PING_ON_DEFAULT_ROUTE`、`INTERNAL_ERROR`
   和未知代码只需记录日志。
+- 递增的等待从 `reconnectBaseDelay`（1 秒）开始，每次翻倍，最多到 `reconnectMaxDelay`（30 秒），只有收到 pong 或文章时
+  才重新开始。`connection.admitted` 不算：它在服务器检查订阅之前到达，所以 admitted 之后出现 `SEARCH_FAILED` 或关闭的循环
+  仍然必须放慢。
 - 如果您的 WebSocket 库提供被拒连接的 body，请读取它，并按开头比较 403 文本。没有可读的 body 时：401 永久停止；403 至少
   等待 60 秒并报告错误。
 - `SEARCH_FAILED` 连续出现 5 次后才报告（`searchFailedThreshold`），期间继续重连。

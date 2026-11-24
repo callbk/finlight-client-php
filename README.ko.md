@@ -164,10 +164,17 @@ switch ($frame->kind()) {
 - 루프 규칙: 25초마다 `{"action":"ping","t":<epoch ms>}`를 보냅니다. 60초 동안 어떤 형식의 pong도 오지 않으면 닫고 다시
   연결합니다. 115분 후에는 새 연결을 엽니다. 다시 연결할 때마다 같은 구독을 보냅니다. 이벤트, `data.id`, `data`의 해시로
   중복을 걸러냅니다. 이 값들은 `FinlightConfig`(`pingInterval`, `watchdogTimeout`, `rotationInterval`)에 있습니다.
+- 115분이 되면 이전 연결을 연 채로 새 연결을 열고 구독한 다음 이전 연결을 닫습니다. 요금제가 연결 한도에 도달해
+  있으면(예: 한도 1) 이전 연결이 아직 계산되어 새 연결이 거부됩니다. 이 연결이 거부되거나 실패하면(403, 5xx, 네트워크
+  오류) 이전 연결을 닫고 그 close 응답을 기다린 뒤(최대 5초) 바로 다시 연결합니다. 이 거부는 보고하지 않습니다. 이
+  연결마저 거부될 때만 아래 설명대로 기다립니다. 완전히 멈추는 거부(아래)는 여기서도 멈춥니다.
 - 다음 경우에는 완전히 멈춥니다: 연결 시 401, 연결 시 403 "Your subscription does not include WebSockets",
   `VALIDATION_FAILED`, 이유가 `connection_limit`인 `connection.preempted`, 코드 1008로 닫힌 연결. 그 밖의 종료, 5xx, `HANDSHAKE_FAILED`,
   `SEARCH_FAILED`에서는 대기 시간을 늘려 가며 다시 연결합니다. 연결 시 403 "Too many concurrent connections" 또는 429
   뒤에는 최소 60초를 기다립니다. `PING_ON_DEFAULT_ROUTE`, `INTERNAL_ERROR`, 알 수 없는 코드는 로그만 남깁니다.
+- 늘려 가는 대기 시간은 `reconnectBaseDelay`(1초)에서 시작해 `reconnectMaxDelay`(30초)까지 두 배씩 늘어나며, pong이나
+  기사가 도착했을 때만 처음으로 돌아갑니다. `connection.admitted`는 세지 않습니다. 서버가 구독을 검사하기 전에 오기
+  때문에, admitted 뒤에 `SEARCH_FAILED`나 종료가 이어지는 루프도 계속 느려져야 합니다.
 - WebSocket 라이브러리가 거부된 연결의 본문을 준다면 읽고, 403 텍스트는 앞부분으로 비교합니다. 읽을 수 있는 본문이 없으면
   401은 완전히 멈추고, 403은 최소 60초를 기다린 뒤 오류를 보고합니다.
 - `SEARCH_FAILED`는 5번 연속으로 왔을 때만 보고합니다(`searchFailedThreshold`). 그동안에도 계속 다시 연결합니다.

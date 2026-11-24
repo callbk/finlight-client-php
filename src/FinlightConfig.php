@@ -30,8 +30,10 @@ use Psr\Log\LoggerInterface;
  * WebSocket: this SDK has no WebSocket transport. wssUrl and the stream values below are the
  * values to use in your own socket loop (see the README): ping every pingInterval (25 s), reconnect
  * when no pong came for watchdogTimeout (60 s), open a fresh connection after rotationInterval
- * (115 min), back off between reconnectBaseDelay (1 s) and reconnectMaxDelay (30 s), wait
- * longBackoff (60 s) after a refusal for the connection limit, and retry every
+ * (115 min), back off between reconnectBaseDelay (1 s) and reconnectMaxDelay (30 s) and start
+ * over only after a pong or an article, wait longBackoff (60 s) after a refusal for the
+ * connection limit (not for a refused rotation dial: close the old connection and dial again
+ * once first), and retry every
  * quotaReconnectInterval (1 h) while quotaReconnect is true when the WebSocket quota is used up.
  *
  * Injection: httpClient (PSR-18) with requestFactory and streamFactory (PSR-17), logger (PSR-3,
