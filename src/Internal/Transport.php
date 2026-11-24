@@ -289,7 +289,8 @@ final class Transport
     {
         // Guzzle is preferred when installed: it is the one way to apply the timeouts, since
         // PSR-18 has no portable setting for them. Redirects and hidden retries are off.
-        if (class_exists(\GuzzleHttp\Client::class)) {
+        // Only Guzzle 7 implements PSR-18; an older Guzzle is left to discovery.
+        if (class_exists(\GuzzleHttp\Client::class) && is_subclass_of(\GuzzleHttp\Client::class, ClientInterface::class)) { // @phpstan-ignore function.alreadyNarrowedType
             $client = new \GuzzleHttp\Client([
                 'timeout' => $this->config->timeout,
                 'connect_timeout' => min($this->config->timeout, $this->config->connectTimeout),

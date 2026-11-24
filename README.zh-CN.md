@@ -24,7 +24,7 @@ SDK 版本与 API 版本相互独立。其他支持 API v3 的 finlight SDK：Ty
 
 - PHP 8.2 或更高版本，64 位
 - 一个 [PSR-18](https://www.php-fig.org/psr/psr-18/) HTTP 客户端和 [PSR-17](https://www.php-fig.org/psr/psr-17/)
-  工厂。如果安装了 Guzzle 7.8+，会自动使用它；其他客户端通过 `php-http/discovery` 1.19+ 查找。
+  工厂。如果安装了 Guzzle 7，会自动使用它；其他客户端通过 `php-http/discovery` 1.19+ 查找。
 - `psr/log` 1.1+、`psr/clock` 1.0+、`psr/http-message` 1.1+
 
 ## Installation
@@ -161,9 +161,12 @@ switch ($frame->kind()) {
   打开新连接。每次重连后发送相同的订阅。按事件、`data.id` 和 `data` 的哈希去重。这些值在 `FinlightConfig` 中
   （`pingInterval`、`watchdogTimeout`、`rotationInterval`）。
 - 以下情况永久停止：连接 401、连接 403 "Your subscription does not include WebSockets"、`VALIDATION_FAILED`、原因为
-  `connection_limit` 的 `connection.preempted`。其他关闭、5xx、`HANDSHAKE_FAILED` 和 `SEARCH_FAILED` 时以递增的等待
+  `connection_limit` 的 `connection.preempted`，以及关闭码 1008。其他关闭、5xx、`HANDSHAKE_FAILED` 和 `SEARCH_FAILED` 时以递增的等待
   重连；连接 403 "Too many concurrent connections" 或 429 后至少等待 60 秒。`PING_ON_DEFAULT_ROUTE`、`INTERNAL_ERROR`
   和未知代码只需记录日志。
+- 如果您的 WebSocket 库提供被拒连接的 body，请读取它，并按开头比较 403 文本。没有可读的 body 时：401 永久停止；403 至少
+  等待 60 秒并报告错误。
+- `SEARCH_FAILED` 连续出现 5 次后才报告（`searchFailedThreshold`），期间继续重连。
 - 每月 WebSocket 配额用完时（连接 403 "WebSocket quota exceeded"，或原因为 `quota_exceeded` 的
   `connection.preempted`），每小时重试一次，直到成功（`quotaReconnect`、`quotaReconnectInterval`）。
 - 重连后不会自动补载。请用 `articles->searchAll()` 从您看到的最后一个 `availableAt`（raw：`firstSeenAt`）开始补齐。
@@ -187,8 +190,12 @@ use Finlight\Webhooks;
 use Finlight\WrongPayloadVersion;
 
 $rawBody = file_get_contents('php://input');
+$secret = getenv('FINLIGHT_WEBHOOK_SECRET');
+if (!is_string($secret) || $secret === '') {
+    throw new RuntimeException('FINLIGHT_WEBHOOK_SECRET is not set');
+}
 try {
-    $result = Webhooks::constructEvent($rawBody, $_SERVER, getenv('FINLIGHT_WEBHOOK_SECRET'));
+    $result = Webhooks::constructEvent($rawBody, $_SERVER, $secret);
 } catch (WebhookVerificationException $e) {
     http_response_code(400);                 // never 410
     exit;
@@ -243,6 +250,8 @@ SDK 抛出的每个异常都实现 `FinlightException`，并具有 `kind()`。
 每月 429 会立即失败，`searchAll()` 中也是如此。突发 429 会等待 `Retry-After` 秒（没有该 header 时为 10 秒）后再试一次；
 设置 `retryOnBurst: 'off'` 可关闭此行为。每次调用发送自己的 `X-Request-Id`，重试时保持不变。`totalTimeout` 限制整个调用
 （包括重试和突发等待）的时长；在 PHP-FPM 下请使用它。
+
+PHP 没有取消机制，无法从外部停止正在运行的调用。请改用 `totalTimeout` 限制时长。
 
 ## Configuration
 

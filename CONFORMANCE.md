@@ -14,6 +14,19 @@ How the cases run in PHP:
   (`tests/Support/SessionModel.php`) applies the connection rules from the README to reach the outcome.
   S-02 writes the dial headers to a TCP listener on 127.0.0.1 and reads the raw bytes.
 
+What the S cases verify of the SDK itself (PHP stops at the decoder level, by owner decision):
+
+- Rows without a mark: the outcome comes from SDK code (`Subscribe`, `Frame::decode()`, the decoded
+  `FinlightApiException` and its kind).
+- `(part ref)`: the SDK decodes the frame (preempt reason, error code and its exception class); the
+  reconnect class that follows is decided by the reference loop in `tests/Support/SessionModel.php`.
+- `(ref)`: decoder level only. The outcome is decided by the reference loop in `tests/Support`, not by
+  code in `src/`. S-04 (dedupe), S-16 (watchdog) and S-18 (rotation) are loop rules; S-19 to S-28
+  (refused dials: status and body, long wait, takeover hint, hourly quota wait) have no SDK code
+  at all, since PHP has no transport that dials. S-02 only shows that `Subscribe::dialHeaders()` uses
+  lowercase names; the bytes are written by the test. These cases document the rules the README
+  gives for your own loop and are not counted as SDK conformance.
+
 | Case | Title | Test |
 |---|---|---|
 | V-01 | Known constants equal vocab.json | `VocabTest::testKnownConstantsEqualVocab` |
@@ -94,32 +107,33 @@ How the cases run in PHP:
 | W-15 | Signature computed with the hex-decoded secret | `WebhooksTest::testWebhookCase#W-15` |
 | W-16 | Case-insensitive header lookup | `WebhooksTest::testWebhookCase#W-16` |
 | S-01 | Ping before subscribe gets a v2 pong; after the v3 subscribe pongs are v3 | `SessionsTest::testSession#S-01` |
-| S-02 | Lowercase x-api-key on the wire | `WsRawBytesTest::testLowercaseApiKeyOnTheWire` |
+| S-02 | Lowercase x-api-key on the wire (ref) | `WsRawBytesTest::testLowercaseApiKeyOnTheWire` |
 | S-03 | connection.admitted echoes the nonce; a re-subscribe re-admits only with the same nonce | `SessionsTest::testSession#S-03` |
-| S-04 | article.created then article.updated for the same id, then an exact duplicate | `SessionsTest::testSession#S-04` |
+| S-04 | article.created then article.updated for the same id, then an exact duplicate (ref) | `SessionsTest::testSession#S-04` |
 | S-05 | An unknown event name arrives | `SessionsTest::testSession#S-05` |
 | S-06 | connection.error PING_ON_DEFAULT_ROUTE | `SessionsTest::testSession#S-06` |
 | S-07 | VALIDATION_FAILED for a v2 key in a v3 subscribe | `SessionsTest::testSession#S-07` |
 | S-08 | VALIDATION_FAILED for include on raw | `SessionsTest::testSession#S-08` |
-| S-09 | connection.preempted, reason connection_limit (another connection took over) | `SessionsTest::testSession#S-09` |
-| S-10 | connection.preempted, reason quota_exceeded | `SessionsTest::testSession#S-10` |
+| S-09 | connection.preempted, reason connection_limit (another connection took over) (part ref) | `SessionsTest::testSession#S-09` |
+| S-10 | connection.preempted, reason quota_exceeded (part ref) | `SessionsTest::testSession#S-10` |
 | S-11 | Preempted before the first subscribe: the frame comes in v2 form | `SessionsTest::testSession#S-11` |
 | S-12 | Error for an unreadable message comes in v2 form | `SessionsTest::testSession#S-12` |
-| S-13 | connection.error HANDSHAKE_FAILED | `SessionsTest::testSession#S-13` |
-| S-14 | connection.error SEARCH_FAILED | `SessionsTest::testSession#S-14` |
+| S-13 | connection.error HANDSHAKE_FAILED (part ref) | `SessionsTest::testSession#S-13` |
+| S-14 | connection.error SEARCH_FAILED (part ref) | `SessionsTest::testSession#S-14` |
 | S-15 | connection.error INTERNAL_ERROR | `SessionsTest::testSession#S-15` |
-| S-16 | No pong for 60 s | `SessionsTest::testSession#S-16` |
+| S-16 | No pong for 60 s (ref) | `SessionsTest::testSession#S-16` |
 | S-17 | Raw stream: admitted, no initial push, skeleton frames | `SessionsTest::testSession#S-17` |
-| S-18 | Proactive rotation before the 2 h connection lifetime | `SessionsTest::testSession#S-18` |
-| S-19 | Dial refused: no API key | `SessionsTest::testSession#S-19` |
-| S-20 | Dial refused: invalid API key | `SessionsTest::testSession#S-20` |
-| S-21 | Dial refused: API key in the wrong format | `SessionsTest::testSession#S-21` |
-| S-22 | Dial refused: plan without WebSockets | `SessionsTest::testSession#S-22` |
-| S-23 | Dial refused: connection limit reached, no takeover | `SessionsTest::testSession#S-23` |
-| S-24 | Dial refused: WebSocket quota exhausted | `SessionsTest::testSession#S-24` |
-| S-25 | Dial refused: lost the admit race | `SessionsTest::testSession#S-25` |
-| S-26 | Dial refused: server error | `SessionsTest::testSession#S-26` |
-| S-27 | connection.preempted, reason quota_exceeded, with quotaReconnect turned off | `SessionsTest::testSession#S-27` |
-| S-28 | Dial refused: WebSocket quota exhausted, with quotaReconnect turned off | `SessionsTest::testSession#S-28` |
+| S-18 | Proactive rotation before the 2 h connection lifetime (ref) | `SessionsTest::testSession#S-18` |
+| S-19 | Dial refused: no API key (ref) | `SessionsTest::testSession#S-19` |
+| S-20 | Dial refused: invalid API key (ref) | `SessionsTest::testSession#S-20` |
+| S-21 | Dial refused: API key in the wrong format (ref) | `SessionsTest::testSession#S-21` |
+| S-22 | Dial refused: plan without WebSockets (ref) | `SessionsTest::testSession#S-22` |
+| S-23 | Dial refused: connection limit reached, no takeover (ref) | `SessionsTest::testSession#S-23` |
+| S-24 | Dial refused: WebSocket quota exhausted (ref) | `SessionsTest::testSession#S-24` |
+| S-25 | Dial refused: lost the admit race (ref) | `SessionsTest::testSession#S-25` |
+| S-26 | Dial refused: server error (ref) | `SessionsTest::testSession#S-26` |
+| S-27 | connection.preempted, reason quota_exceeded, with quotaReconnect turned off (ref) | `SessionsTest::testSession#S-27` |
+| S-28 | Dial refused: WebSocket quota exhausted, with quotaReconnect turned off (ref) | `SessionsTest::testSession#S-28` |
 
-Total: 105 cases.
+Total: 105 cases. 91 verify SDK code, 4 of them only up to the decoded frame `(part ref)`; 14 are
+marked `(ref)` and verify only the reference loop in `tests/Support`.

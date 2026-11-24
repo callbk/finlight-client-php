@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Finlight;
 
+use Finlight\Internal\Secret;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -36,17 +37,26 @@ use Psr\Log\LoggerInterface;
  * Injection: httpClient (PSR-18) with requestFactory and streamFactory (PSR-17), logger (PSR-3,
  * silent by default) and clock (PSR-20). A clock that also has a sleep(float|int $seconds) method
  * (like Symfony's MockClock) is used for the waits between retries.
+ *
+ * $config->apiKey reads the key back. It is not stored as a property of the config, so var_dump(),
+ * print_r(), var_export(), an (array) cast and json_encode() of the config never show it. A config
+ * cannot be serialized.
+ *
+ * @property-read string $apiKey
  */
-final class FinlightConfig
+final class FinlightConfig implements \JsonSerializable
 {
     public const DEFAULT_BASE_URL = 'https://api.finlight.me';
     public const DEFAULT_WSS_URL = 'wss://wss.finlight.me';
     public const RETRY_ON_BURST_ONCE = 'once';
     public const RETRY_ON_BURST_OFF = 'off';
 
+    /** The API key, kept where no dump of the config reaches it; see __get(). */
+    private readonly Secret $secret;
+
     public function __construct(
         #[\SensitiveParameter]
-        public readonly string $apiKey,
+        string $apiKey,
         public readonly string $baseUrl = self::DEFAULT_BASE_URL,
         public readonly string $wssUrl = self::DEFAULT_WSS_URL,
         public readonly float $timeout = 30.0,
@@ -80,6 +90,7 @@ final class FinlightConfig
         if (trim($apiKey) === '') {
             throw new FinlightValidationException('finlight: apiKey must not be empty', 'apiKey');
         }
+        $this->secret = new Secret($apiKey);
         foreach (['baseUrl' => $baseUrl, 'wssUrl' => $wssUrl] as $name => $url) {
             if (preg_match('#^[a-z][a-z0-9+.-]*://[^/\s]+#i', $url) !== 1) {
                 throw new FinlightValidationException(sprintf('finlight: %s is not a URL', $name), $name);
@@ -120,6 +131,39 @@ final class FinlightConfig
         if ($maxMessageBytes < 16 * 1024 * 1024) {
             throw new FinlightValidationException('finlight: maxMessageBytes must be at least 16 MiB', 'maxMessageBytes');
         }
+    }
+
+    public function __get(string $name): string
+    {
+        if ($name === 'apiKey') {
+            return $this->secret->reveal();
+        }
+        throw new \Error(sprintf('Undefined property: %s::$%s', self::class, $name));
+    }
+
+    public function __isset(string $name): bool
+    {
+        return $name === 'apiKey';
+    }
+
+    public function __set(string $name, mixed $value): void
+    {
+        throw new \Error(sprintf('Cannot modify readonly property %s::$%s', self::class, $name));
+    }
+
+    public function __unset(string $name): void
+    {
+        throw new \Error(sprintf('Cannot modify readonly property %s::$%s', self::class, $name));
+    }
+
+    /**
+     * The settings as JSON, with the API key masked.
+     *
+     * @return array<string, mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->__debugInfo();
     }
 
     /**

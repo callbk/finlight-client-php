@@ -69,6 +69,14 @@ final class FrameTest extends TestCase
         self::assertSame(['raw' => 'raw delivers the skeleton only'], $error->errors()[0]->constraints);
     }
 
+    public function testErrorRawIsTheFrameTextAsReceived(): void
+    {
+        $text = '{"event":"connection.error", "payloadVersion":3,"data":{"code":"SEARCH_FAILED","message":"caf\u00e9 \/ x","n":123456789012345678901234567890}}';
+        self::assertSame($text, Frame::decode($text)->error()?->raw());
+        $v2 = '{"action":"error","error":"Invalid message"}';
+        self::assertSame($v2, Frame::decode($v2)->error()?->raw());
+    }
+
     public function testUnreadableFramesThrow(): void
     {
         foreach (['', 'nope', '[1]', '{"event":"article.created","data":{"id":"x"}}'] as $text) {

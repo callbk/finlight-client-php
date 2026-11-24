@@ -139,16 +139,15 @@ final class Problem
     }
 
     /**
-     * The error of a connection.error frame: the kind comes from the code.
-     *
-     * @param array<string, mixed> $frame
+     * The error of a connection.error frame: the kind comes from the code. raw() is the frame text
+     * as received.
      */
-    public static function fromConnectionError(?string $code, ?string $text, mixed $details, array $frame): FinlightApiException
+    public static function fromConnectionError(?string $code, ?string $text, mixed $details, string $frame): FinlightApiException
     {
         $message = 'finlight stream error' . ($code !== null ? ' ' . $code : '') . ($text !== null ? ': ' . $text : '');
         $class = self::CODE_CLASSES[$code ?? ''] ?? FinlightApiException::class;
 
-        return new $class($message, null, $code, null, null, $text, null, self::issues($details), Json::encode($frame));
+        return new $class($message, null, $code, null, null, $text, null, self::issues($details), $frame);
     }
 
     /**

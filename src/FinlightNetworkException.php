@@ -18,4 +18,24 @@ class FinlightNetworkException extends \RuntimeException implements FinlightExce
     {
         return FinlightException::KIND_NETWORK;
     }
+
+    /**
+     * var_dump() and print_r() show the message, the kind and the class of the HTTP client's
+     * error, never that error's properties: it holds the request with the X-API-KEY header.
+     * getPrevious() still returns it.
+     *
+     * @return array<string, mixed>
+     */
+    public function __debugInfo(): array
+    {
+        $previous = $this->getPrevious();
+
+        return [
+            'message' => $this->getMessage(),
+            'kind' => $this->kind(),
+            'file' => $this->getFile(),
+            'line' => $this->getLine(),
+            'previous' => $previous === null ? null : $previous::class,
+        ];
+    }
 }

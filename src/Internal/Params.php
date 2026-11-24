@@ -156,6 +156,18 @@ final class Params
         return $items;
     }
 
+    /**
+     * A string that goes into a JSON body must be valid UTF-8; checked when the call is made.
+     */
+    public static function utf8(string $key, string $value): string
+    {
+        if (preg_match('//u', $value) !== 1) {
+            throw new FinlightValidationException(sprintf('finlight: %s is not valid UTF-8', $key), $key);
+        }
+
+        return $value;
+    }
+
     private static function convert(string $key, string $kind, mixed $value): mixed
     {
         switch ($kind) {
@@ -164,7 +176,7 @@ final class Params
                     throw new FinlightValidationException(sprintf('finlight: %s must be a string', $key), $key);
                 }
 
-                return $value;
+                return self::utf8($key, $value);
             case 'strings':
                 return self::strings($key, $value);
             case 'languages':
@@ -184,7 +196,7 @@ final class Params
                 return $value;
             case 'time':
                 if (is_string($value)) {
-                    return $value; // a caller's string is sent unchanged
+                    return self::utf8($key, $value); // a caller's string is sent unchanged
                 }
                 if ($value instanceof \DateTimeInterface) {
                     return Time::format($value);
@@ -224,6 +236,7 @@ final class Params
             if (!is_string($item)) {
                 throw new FinlightValidationException(sprintf('finlight: %s must contain only strings', $key), $key);
             }
+            self::utf8($key, $item);
         }
 
         /** @var list<string> $value */

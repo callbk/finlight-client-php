@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Finlight\Internal;
 
+use Finlight\FinlightValidationException;
+
 /**
  * JSON with fixed flags: errors throw, slashes and Unicode are written as they are, and an empty
  * object is written as {} (pass a stdClass).
@@ -17,6 +19,19 @@ final class Json
     public static function encode(mixed $value): string
     {
         return json_encode($value, self::ENCODE);
+    }
+
+    /**
+     * Encode a request body or subscribe message. The parameters were checked before, so a failure
+     * here is a safety net: it still throws a FinlightValidationException, never a JsonException.
+     */
+    public static function encodeRequest(mixed $value): string
+    {
+        try {
+            return json_encode($value, self::ENCODE);
+        } catch (\JsonException $e) {
+            throw new FinlightValidationException('finlight: the request cannot be written as JSON (' . $e->getMessage() . ')');
+        }
     }
 
     /**

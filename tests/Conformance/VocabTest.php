@@ -72,6 +72,28 @@ final class VocabTest extends TestCase
         self::assertSame($codes, ProblemCode::ALL);
         self::assertSame($types, ProblemCode::TYPES);
 
+        // Constant names follow the values: VALIDATION_FAILED, not V_A_L_I_D_... (only ALL and
+        // the grouping constants are not values).
+        $classes = [
+            IncludeBlock::class, OrderBy::class, SortOrder::class, CompanyRole::class, EventType::class,
+            EventDirection::class, Importance::class, SentimentLabel::class, SourceType::class,
+            StreamEventName::class, ConnectionErrorCode::class, PreemptReason::class, WebhookEventName::class,
+            RateLimitType::class, ProblemCode::class,
+        ];
+        foreach ($classes as $class) {
+            $all = (new \ReflectionClass($class))->getConstant('ALL');
+            self::assertIsArray($all, $class);
+            foreach ((new \ReflectionClass($class))->getReflectionConstants() as $constant) {
+                $name = $constant->getName();
+                self::assertDoesNotMatchRegularExpression('/(?:^|_)[A-Z]_[A-Z]_/', $name, $class . '::' . $name);
+                $value = $constant->getValue();
+                if (is_string($value) && in_array($value, $all, true)) {
+                    $expected = strtoupper((string) preg_replace('/[^A-Za-z0-9]+/', '_', (string) preg_replace('/([a-z0-9])([A-Z])/', '$1_$2', $value)));
+                    self::assertSame($expected, $name, $class . ' constant for "' . $value . '"');
+                }
+            }
+        }
+
         // The stream values the README gives for your own socket loop come from the kit too.
         $ws = Kit::obj($vocab['websocket']);
         $config = new \Finlight\FinlightConfig('k');

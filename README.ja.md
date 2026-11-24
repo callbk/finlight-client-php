@@ -25,7 +25,7 @@ Go モジュール `/v2`、.NET 2.x、Java 1.x、Ruby 1.x、Rust 0.2。
 
 - PHP 8.2 以降（64 ビット）
 - [PSR-18](https://www.php-fig.org/psr/psr-18/) の HTTP クライアントと [PSR-17](https://www.php-fig.org/psr/psr-17/)
-  のファクトリ。Guzzle 7.8+ がインストールされていれば自動で使われます。それ以外は `php-http/discovery` 1.19+ で探します。
+  のファクトリ。Guzzle 7 がインストールされていれば自動で使われます。それ以外は `php-http/discovery` 1.19+ で探します。
 - `psr/log` 1.1+、`psr/clock` 1.0+、`psr/http-message` 1.1+
 
 ## Installation
@@ -167,9 +167,12 @@ switch ($frame->kind()) {
   ハッシュで重複を除きます。これらの値は `FinlightConfig`（`pingInterval`、`watchdogTimeout`、`rotationInterval`）に
   あります。
 - 次の場合は完全に停止します：接続時の 401、接続時の 403 "Your subscription does not include WebSockets"、
-  `VALIDATION_FAILED`、理由が `connection_limit` の `connection.preempted`。その他の切断、5xx、`HANDSHAKE_FAILED`、
+  `VALIDATION_FAILED`、理由が `connection_limit` の `connection.preempted`、コード 1008 での切断。その他の切断、5xx、`HANDSHAKE_FAILED`、
   `SEARCH_FAILED` では待ち時間を延ばしながら再接続します。接続時の 403 "Too many concurrent connections" または 429 の後は
   60 秒以上待ちます。`PING_ON_DEFAULT_ROUTE`、`INTERNAL_ERROR`、未知のコードはログに記録するだけです。
+- WebSocket ライブラリが拒否された接続のボディを渡してくれる場合は読み、403 のテキストは先頭で比較します。読めるボディが
+  ない場合、401 は完全に停止し、403 は 60 秒以上待ってからエラーを報告します。
+- `SEARCH_FAILED` は 5 回続いたときだけ報告します（`searchFailedThreshold`）。その間も再接続を続けます。
 - 月間の WebSocket クォータを使い切った場合（接続時の 403 "WebSocket quota exceeded"、または理由が `quota_exceeded` の
   `connection.preempted`）、成功するまで 1 時間ごとに再試行します（`quotaReconnect`、`quotaReconnectInterval`）。
 - 再接続後に自動で補完はしません。最後に見た `availableAt`（raw では `firstSeenAt`）から `articles->searchAll()` で
@@ -194,8 +197,12 @@ use Finlight\Webhooks;
 use Finlight\WrongPayloadVersion;
 
 $rawBody = file_get_contents('php://input');
+$secret = getenv('FINLIGHT_WEBHOOK_SECRET');
+if (!is_string($secret) || $secret === '') {
+    throw new RuntimeException('FINLIGHT_WEBHOOK_SECRET is not set');
+}
 try {
-    $result = Webhooks::constructEvent($rawBody, $_SERVER, getenv('FINLIGHT_WEBHOOK_SECRET'));
+    $result = Webhooks::constructEvent($rawBody, $_SERVER, $secret);
 } catch (WebhookVerificationException $e) {
     http_response_code(400);                 // never 410
     exit;
@@ -253,6 +260,8 @@ SDK がスローする例外はすべて `FinlightException` を実装し、`kin
 `Retry-After` 秒（ヘッダーがなければ 10 秒）待ってから一度だけ再試行します。`retryOnBurst: 'off'` で無効にできます。
 各呼び出しは独自の `X-Request-Id` を送り、再試行でも同じ値を使います。`totalTimeout` は再試行とバースト待ちを含めた
 呼び出し全体の時間を制限します。PHP-FPM ではこれを使ってください。
+
+PHP にはキャンセルの仕組みがないため、実行中の呼び出しを外から止めることはできません。代わりに `totalTimeout` で時間を制限してください。
 
 ## Configuration
 

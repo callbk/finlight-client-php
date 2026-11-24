@@ -78,7 +78,7 @@ final class Frame
                     self::str($fields['code'] ?? null),
                     self::str($fields['message'] ?? null),
                     $fields['details'] ?? null,
-                    $obj,
+                    $text,
                 )),
                 default => new self(self::OTHER, $obj, new StreamEvent(StreamEventKind::OTHER, $event, null, $obj)),
             };
@@ -91,7 +91,7 @@ final class Frame
             'admit' => new self(self::ADMITTED, $obj, admitted: self::admittedFrom($obj)),
             'pong' => new self(self::PONG, $obj),
             'preempted' => new self(self::PREEMPTED, $obj, preempted: self::preemptedFrom($obj)),
-            'error' => new self(self::ERROR, $obj, error: Problem::fromConnectionError(null, self::errorText($obj['error'] ?? $obj['data'] ?? null), null, $obj)),
+            'error' => new self(self::ERROR, $obj, error: Problem::fromConnectionError(null, self::errorText($obj['error'] ?? $obj['data'] ?? null), null, $text)),
             // A v2 sendArticle frame is never delivered as an article.
             default => new self(self::OTHER, $obj, new StreamEvent(StreamEventKind::OTHER, null, null, $obj)),
         };

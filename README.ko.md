@@ -24,7 +24,7 @@ Go 모듈 `/v2`, .NET 2.x, Java 1.x, Ruby 1.x, Rust 0.2.
 
 - PHP 8.2 이상, 64비트
 - [PSR-18](https://www.php-fig.org/psr/psr-18/) HTTP 클라이언트와 [PSR-17](https://www.php-fig.org/psr/psr-17/) 팩토리.
-  Guzzle 7.8+가 설치되어 있으면 자동으로 사용합니다. 그 밖의 클라이언트는 `php-http/discovery` 1.19+로 찾습니다.
+  Guzzle 7이 설치되어 있으면 자동으로 사용합니다. 그 밖의 클라이언트는 `php-http/discovery` 1.19+로 찾습니다.
 - `psr/log` 1.1+, `psr/clock` 1.0+, `psr/http-message` 1.1+
 
 ## Installation
@@ -165,9 +165,12 @@ switch ($frame->kind()) {
   연결합니다. 115분 후에는 새 연결을 엽니다. 다시 연결할 때마다 같은 구독을 보냅니다. 이벤트, `data.id`, `data`의 해시로
   중복을 걸러냅니다. 이 값들은 `FinlightConfig`(`pingInterval`, `watchdogTimeout`, `rotationInterval`)에 있습니다.
 - 다음 경우에는 완전히 멈춥니다: 연결 시 401, 연결 시 403 "Your subscription does not include WebSockets",
-  `VALIDATION_FAILED`, 이유가 `connection_limit`인 `connection.preempted`. 그 밖의 종료, 5xx, `HANDSHAKE_FAILED`,
+  `VALIDATION_FAILED`, 이유가 `connection_limit`인 `connection.preempted`, 코드 1008로 닫힌 연결. 그 밖의 종료, 5xx, `HANDSHAKE_FAILED`,
   `SEARCH_FAILED`에서는 대기 시간을 늘려 가며 다시 연결합니다. 연결 시 403 "Too many concurrent connections" 또는 429
   뒤에는 최소 60초를 기다립니다. `PING_ON_DEFAULT_ROUTE`, `INTERNAL_ERROR`, 알 수 없는 코드는 로그만 남깁니다.
+- WebSocket 라이브러리가 거부된 연결의 본문을 준다면 읽고, 403 텍스트는 앞부분으로 비교합니다. 읽을 수 있는 본문이 없으면
+  401은 완전히 멈추고, 403은 최소 60초를 기다린 뒤 오류를 보고합니다.
+- `SEARCH_FAILED`는 5번 연속으로 왔을 때만 보고합니다(`searchFailedThreshold`). 그동안에도 계속 다시 연결합니다.
 - 월간 WebSocket 할당량을 다 쓰면(연결 시 403 "WebSocket quota exceeded", 또는 이유가 `quota_exceeded`인
   `connection.preempted`) 성공할 때까지 한 시간마다 다시 시도합니다(`quotaReconnect`, `quotaReconnectInterval`).
 - 다시 연결한 뒤 자동으로 채워 주지 않습니다. 마지막으로 본 `availableAt`(raw: `firstSeenAt`)부터
@@ -192,8 +195,12 @@ use Finlight\Webhooks;
 use Finlight\WrongPayloadVersion;
 
 $rawBody = file_get_contents('php://input');
+$secret = getenv('FINLIGHT_WEBHOOK_SECRET');
+if (!is_string($secret) || $secret === '') {
+    throw new RuntimeException('FINLIGHT_WEBHOOK_SECRET is not set');
+}
 try {
-    $result = Webhooks::constructEvent($rawBody, $_SERVER, getenv('FINLIGHT_WEBHOOK_SECRET'));
+    $result = Webhooks::constructEvent($rawBody, $_SERVER, $secret);
 } catch (WebhookVerificationException $e) {
     http_response_code(400);                 // never 410
     exit;
@@ -251,6 +258,8 @@ SDK가 던지는 모든 예외는 `FinlightException`을 구현하며 `kind()`�
 (헤더가 없으면 10초)를 기다린 뒤 한 번 더 시도합니다. `retryOnBurst: 'off'`로 끌 수 있습니다. 모든 호출은 고유한
 `X-Request-Id`를 보내며, 재시도할 때도 같은 값을 씁니다. `totalTimeout`은 재시도와 버스트 대기를 포함한 호출 전체 시간을
 제한합니다. PHP-FPM에서는 이 값을 쓰세요.
+
+PHP에는 취소 기능이 없어서 실행 중인 호출을 밖에서 멈출 수 없습니다. 대신 `totalTimeout`으로 시간을 제한하세요.
 
 ## Configuration
 

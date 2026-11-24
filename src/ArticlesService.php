@@ -98,7 +98,7 @@ final class ArticlesService
      */
     private function page(array $body): ArticlePage
     {
-        $json = Json::encode($body === [] ? new \stdClass() : $body);
+        $json = Json::encodeRequest($body === [] ? new \stdClass() : $body);
         $response = $this->transport->call('POST', '/v3/articles/search', [], $json);
 
         return Decode::articlePage($response->jsonObject('search'), $this->transport->logger());

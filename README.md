@@ -23,7 +23,7 @@ Go module `/v2`, .NET 2.x, Java 1.x, Ruby 1.x, Rust 0.2.
 
 - PHP 8.2 or newer, 64-bit
 - A [PSR-18](https://www.php-fig.org/psr/psr-18/) HTTP client and [PSR-17](https://www.php-fig.org/psr/psr-17/)
-  factories. Guzzle 7.8+ is used automatically when installed; any other is found through
+  factories. Guzzle 7 is used automatically when installed; any other is found through
   `php-http/discovery` 1.19+.
 - `psr/log` 1.1+, `psr/clock` 1.0+, `psr/http-message` 1.1+
 
@@ -169,9 +169,12 @@ switch ($frame->kind()) {
   subscribe. Drop duplicates by event, `data.id` and a hash of `data`. These values are in `FinlightConfig`
   (`pingInterval`, `watchdogTimeout`, `rotationInterval`).
 - Stop for good on: dial 401, dial 403 "Your subscription does not include WebSockets", `VALIDATION_FAILED`,
-  `connection.preempted` with reason `connection_limit`. Reconnect with a growing wait on other closes, 5xx,
-  `HANDSHAKE_FAILED` and `SEARCH_FAILED`; wait at least 60 s after dial 403 "Too many concurrent
-  connections" or 429. Only log `PING_ON_DEFAULT_ROUTE`, `INTERNAL_ERROR` and unknown codes.
+  `connection.preempted` with reason `connection_limit`, and a close with code 1008. Reconnect with a growing
+  wait on other closes, 5xx, `HANDSHAKE_FAILED` and `SEARCH_FAILED`; wait at least 60 s after dial 403 "Too
+  many concurrent connections" or 429. Only log `PING_ON_DEFAULT_ROUTE`, `INTERNAL_ERROR` and unknown codes.
+- Read the body of a refused dial when your WebSocket library gives it to you, and compare the 403 texts by
+  their start. Without a readable body: 401 stops for good; 403 waits at least 60 s and reports an error.
+- Report `SEARCH_FAILED` only after 5 in a row (`searchFailedThreshold`); keep reconnecting meanwhile.
 - When the monthly WebSocket quota is used up (dial 403 "WebSocket quota exceeded", or `connection.preempted`
   with reason `quota_exceeded`), try again once per hour until it works (`quotaReconnect`,
   `quotaReconnectInterval`).
@@ -198,8 +201,12 @@ use Finlight\Webhooks;
 use Finlight\WrongPayloadVersion;
 
 $rawBody = file_get_contents('php://input');
+$secret = getenv('FINLIGHT_WEBHOOK_SECRET');
+if (!is_string($secret) || $secret === '') {
+    throw new RuntimeException('FINLIGHT_WEBHOOK_SECRET is not set');
+}
 try {
-    $result = Webhooks::constructEvent($rawBody, $_SERVER, getenv('FINLIGHT_WEBHOOK_SECRET'));
+    $result = Webhooks::constructEvent($rawBody, $_SERVER, $secret);
 } catch (WebhookVerificationException $e) {
     http_response_code(400);                 // never 410
     exit;
@@ -257,6 +264,8 @@ search included. 400, 401, 403, 404 and a monthly 429 are never retried: a month
 inside `searchAll()`. A burst 429 waits `Retry-After` seconds (10 without the header) and tries once more;
 set `retryOnBurst: 'off'` to turn that off. Every call sends its own `X-Request-Id`, the same on each retry.
 `totalTimeout` caps a whole call, retries and the burst wait included; use it under PHP-FPM.
+
+PHP has no cancellation, so a running call cannot be stopped from outside. Use `totalTimeout` to bound it.
 
 ## Configuration
 

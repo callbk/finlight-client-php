@@ -7,6 +7,7 @@ namespace Finlight\Tests\Unit;
 use Finlight\FinlightClient;
 use Finlight\FinlightConfig;
 use Finlight\FinlightException;
+use Finlight\FinlightNetworkException;
 use Finlight\Tests\Support\MemoryLogger;
 use Finlight\Tests\Support\MockHttpClient;
 use Finlight\Tests\Support\TestClient;
@@ -27,7 +28,8 @@ final class LoggingTest extends TestCase
         $logger = new MemoryLogger();
         $t = new TestClient(['apiKey' => self::KEY], $logger);
         $texts = [];
-        $t->http->push(new ConnectException('Connection refused', new Request('GET', '/')));
+        // The client's error holds the request, and that request carries the key.
+        $t->http->push(new ConnectException('Connection refused', new Request('GET', '/', ['X-API-KEY' => self::KEY])));
         $t->http->push(MockHttpClient::json(429, ['code' => 'RATE_LIMITED', 'type' => 't', 'title' => 't', 'detail' => 'Exceeded rate limit', 'limitType' => 'burst']));
         $t->http->push(MockHttpClient::json(500, 'gateway down'));
         $t->http->always(static fn () => MockHttpClient::json(401, ['type' => 't', 'title' => 'Unauthorized', 'status' => 401, 'code' => 'UNAUTHORIZED', 'detail' => 'Invalid API key']));
@@ -44,6 +46,16 @@ final class LoggingTest extends TestCase
         var_dump($t->config);
         $texts[] = (string) ob_get_clean();
         $texts[] = print_r($t->client, true);
+        // var_export() and an (array) cast see every property; the injected mock above records its
+        // requests, so these use a config of their own.
+        $config = new FinlightConfig(self::KEY, logger: $logger);
+        $texts[] = var_export($config, true);
+        $texts[] = print_r((array) $config, true);
+        $texts[] = json_encode($config, \JSON_THROW_ON_ERROR);
+        $texts[] = json_encode($t->config, \JSON_THROW_ON_ERROR);
+        self::assertSame(self::KEY, $config->apiKey, 'the key can still be read back');
+        self::assertTrue(isset($config->apiKey));
+        self::assertSame(self::KEY, (clone $config)->apiKey, 'a clone keeps the key');
         self::assertNotEmpty($logger->lines, 'the debug and warning lines were written');
 
         try {
@@ -54,6 +66,48 @@ final class LoggingTest extends TestCase
         foreach ($texts as $text) {
             self::assertStringNotContainsString(self::KEY, $text);
         }
+    }
+
+    public function testANetworkErrorDumpsWithoutTheRequest(): void
+    {
+        $t = new TestClient(['apiKey' => self::KEY, 'maxRetries' => 0]);
+        $cause = new ConnectException('Connection refused', new Request('GET', '/', ['X-API-KEY' => self::KEY]));
+        $t->http->push($cause);
+        try {
+            $t->client->articles->search(['query' => 'x']);
+            self::fail('no error');
+        } catch (FinlightNetworkException $e) {
+            self::assertSame($cause, $e->getPrevious(), 'the original error stays reachable');
+            ob_start();
+            var_dump($e);
+            $dumps = [(string) ob_get_clean(), print_r($e, true), (string) $e, $e->getMessage()];
+            foreach ($dumps as $text) {
+                self::assertStringNotContainsString(self::KEY, $text);
+            }
+            self::assertStringContainsString(ConnectException::class, $dumps[1]);
+        }
+    }
+
+    public function testARealGuzzleErrorDumpsWithoutTheKey(): void
+    {
+        $client = new FinlightClient(new FinlightConfig(self::KEY, baseUrl: 'http://127.0.0.1:1', maxRetries: 0, timeout: 5.0));
+        try {
+            $client->articles->search(['query' => 'x']);
+            self::fail('no error');
+        } catch (FinlightNetworkException $e) {
+            ob_start();
+            var_dump($e);
+            self::assertStringNotContainsString(self::KEY, (string) ob_get_clean());
+            self::assertStringNotContainsString(self::KEY, print_r($e, true));
+            self::assertNotNull($e->getPrevious());
+        }
+    }
+
+    public function testTheConfigKeyIsReadOnly(): void
+    {
+        $config = new FinlightConfig(self::KEY);
+        $this->expectException(\Error::class);
+        $config->apiKey = 'other'; // @phpstan-ignore assign.propertyReadOnly
     }
 
     public function testCreatingAClientInstallsNothingGlobal(): void

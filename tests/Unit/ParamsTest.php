@@ -142,6 +142,11 @@ final class ParamsTest extends TestCase
             'tickers map' => [['tickers' => ['a' => 'AAPL']], 'tickers'],
             'hasContent string' => [['hasContent' => 'true'], 'hasContent'],
             'from int' => [['from' => 1700000000], 'from'],
+            'query not UTF-8' => [['query' => "bad \xff"], 'query'],
+            'tickers not UTF-8' => [['tickers' => ['AAPL', "\xc3"]], 'tickers'],
+            'from not UTF-8' => [['from' => "2026-01-01\xff"], 'from'],
+            'include not UTF-8' => [['include' => ["content\xff"]], 'include'],
+            'cursor not UTF-8' => [['cursor' => "\xfe"], 'cursor'],
         ];
     }
 
@@ -224,6 +229,21 @@ final class ParamsTest extends TestCase
                 self::assertSame($key, $e->param());
             }
         }
+        // A string that is not UTF-8 is refused by name, never as a raw JsonException.
+        foreach ([
+            'query' => static fn () => Subscribe::enriched(['query' => "\xff"]),
+            'sources' => static fn () => Subscribe::enriched(['sources' => ["\xff"]]),
+            'language' => static fn () => Subscribe::raw(['language' => "\xff"]),
+            'clientNonce' => static fn () => Subscribe::raw([], "\xff"),
+        ] as $key => $call) {
+            try {
+                $call();
+                self::fail('not refused: ' . $key);
+            } catch (FinlightValidationException $e) {
+                self::assertSame($key, $e->param());
+            }
+        }
+        self::assertSame('{"payloadVersion":3,"query":"é","clientNonce":"n"}', Subscribe::enriched(['query' => 'é'], 'n'));
         self::assertSame('{"payloadVersion":3,"clientNonce":"n"}', Subscribe::raw([], 'n'));
         self::assertSame('{"payloadVersion":3,"clientNonce":"n"}', Subscribe::enriched(['include' => []], 'n'), 'an empty include is left out');
         self::assertSame('{"payloadVersion":3,"includeUpdates":false,"clientNonce":"n"}', Subscribe::enriched(['includeUpdates' => false], 'n'));

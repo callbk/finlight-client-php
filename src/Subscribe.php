@@ -83,9 +83,10 @@ final class Subscribe
         if ($nonce === '') {
             throw new FinlightValidationException('finlight: clientNonce must not be empty', 'clientNonce');
         }
+        Params::utf8('clientNonce', $nonce);
         $frame = ['payloadVersion' => FinlightClient::PAYLOAD_VERSION] + $body;
         $frame['clientNonce'] = $nonce;
 
-        return Json::encode($frame);
+        return Json::encodeRequest($frame);
     }
 }
