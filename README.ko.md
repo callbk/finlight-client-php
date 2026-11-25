@@ -1,310 +1,382 @@
-# finlight PHP Client
+# finlight client for PHP
 
 *[English](README.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | 한국어*
 
-[![CI](https://github.com/callbk/finlight-client-php/actions/workflows/ci.yml/badge.svg)](https://github.com/callbk/finlight-client-php/actions/workflows/ci.yml)
-[![Packagist Version](https://img.shields.io/packagist/v/finlight/client)](https://packagist.org/packages/finlight/client)
-[![PHP Version](https://img.shields.io/packagist/dependency-v/finlight/client/php)](https://packagist.org/packages/finlight/client)
-[![License](https://img.shields.io/packagist/l/finlight/client)](LICENSE)
+> 이 번역은 [README.md](README.md)를 바탕으로 합니다. 내용이 다르면 영어판이 우선합니다.
 
-[finlight.me](https://finlight.me) 금융 뉴스 API의 PHP 클라이언트입니다. 감성 점수와 엔티티 태그(티커, ISIN, OpenFIGI)가 부가된 시장 뉴스를 검색하고, finlight에서 수신한 Webhook을 검증할 수 있습니다.
+> **호환되지 않는 릴리스입니다.** 2.0.0 버전은 finlight API v3만 지원합니다. 1.x용 코드는 그대로 실행되지 않습니다.
+> 1.x(API v2)를 계속 쓰려면 `finlight/client:^1.0`을 지정하세요. [1.x에서 마이그레이션](#migrating-from-1x)을 참고하세요.
 
-전체 API 레퍼런스: **[docs.finlight.me](https://docs.finlight.me)** · API 키 발급: [app.finlight.me](https://app.finlight.me)
+[finlight](https://finlight.me) 뉴스 API용 PHP 클라이언트입니다. REST로 금융 뉴스, 기업, 출처를 검색하고 조회하며,
+직접 만든 소켓 루프를 위해 WebSocket 메시지를 만들고 읽고, webhook을 검증합니다.
 
-## 요구 사항
+## Versions
 
-- PHP 8.1 이상
-- 임의의 [PSR-18](https://www.php-fig.org/psr/psr-18/) HTTP 클라이언트(Guzzle이 설치되어 있으면 자동으로 사용됩니다)
+| SDK version | API version | Status |
+|---|---|---|
+| 2.x | v3 (REST `/v3`, WebSocket `payloadVersion` 3, v3 webhook) | 현재 버전 |
+| 1.x | v2 | 더 이상 릴리스 없음 |
 
-## 설치
+SDK 버전과 API 버전은 서로 독립적입니다. API v3를 지원하는 다른 finlight SDK: TypeScript 4.x, Python 3.x,
+Go 모듈 `/v2`, .NET 2.x, Java 1.x, Ruby 1.x, Rust 0.2.
+
+## Requirements
+
+- PHP 8.2 이상, 64비트
+- [PSR-18](https://www.php-fig.org/psr/psr-18/) HTTP 클라이언트와 [PSR-17](https://www.php-fig.org/psr/psr-17/) 팩토리.
+  Guzzle 7이 설치되어 있으면 자동으로 사용합니다. 그 밖의 클라이언트는 `php-http/discovery` 1.19+로 찾습니다.
+- `psr/log` 1.1+, `psr/clock` 1.0+, `psr/http-message` 1.1+
+
+## Installation
 
 ```bash
-composer require finlight/client
+composer require finlight/client:^2.0 guzzlehttp/guzzle
 ```
 
-프로젝트에 아직 PSR-18 클라이언트가 없다면 함께 설치하세요:
-
-```bash
-composer require finlight/client guzzlehttp/guzzle
-```
-
-## 빠른 시작
+## Quick start
 
 ```php
 use Finlight\FinlightClient;
-use Finlight\Request\GetArticlesParams;
 
-$client = new FinlightClient('your-api-key');
+$client = new FinlightClient('YOUR_API_KEY');
 
-$response = $client->articles->fetchArticles(new GetArticlesParams(
-    tickers: ['AAPL', 'NVDA'],
-    countries: ['US'],
-    pageSize: 10,
-));
-
-foreach ($response as $article) {
-    printf(
-        "%s  %s  [%s]\n",
-        $article->publishDate->format('Y-m-d H:i'),
-        $article->title,
-        $article->sentiment ?? 'unscored',
-    );
+$page = $client->articles->search(['query' => 'ticker:NVDA', 'limit' => 10]);
+foreach ($page->articles as $article) {
+    echo $article->publishedAt, '  ', $article->title, "\n";
 }
 ```
 
-## 기사 검색
+파라미터는 API의 키 이름(`eventTypes`, `orderBy` 등)을 가진 배열입니다. 설정한 키만 전송됩니다. 알 수 없는 키는 무엇이든
+전송하기 전에 `FinlightValidationException`을 던집니다.
 
-모든 필터는 선택 사항입니다. 필요한 것만 명명 인자로 전달하세요.
+## Search articles
 
 ```php
-use Finlight\Model\ArticleCategory;
-use Finlight\Model\OrderBy;
-use Finlight\Model\SortOrder;
-use Finlight\Request\GetArticlesParams;
-
-$response = $client->articles->fetchArticles(new GetArticlesParams(
-    query: '(ticker:AAPL OR ticker:NVDA) AND NOT source:www.reuters.com AND "earnings"',
-    from: '2026-01-01',
-    to: '2026-06-30',
-    language: 'en',
-    categories: [ArticleCategory::Markets, ArticleCategory::Economy],
-    includeContent: true,
-    includeEntities: true,
-    orderBy: OrderBy::PublishDate,
-    order: SortOrder::Desc,
-    pageSize: 50,
-    page: 1,
-));
-
-echo $response->page, '/', $response->pageSize, ' — ', count($response), " articles\n";
+$page = $client->articles->search([
+    'query' => 'eventType:mna AND companyCountry:US',
+    'languages' => ['en', 'de'],
+    'from' => '2026-11-01',            // a string is sent as it is
+    'to' => new DateTimeImmutable(),    // a DateTimeInterface is sent as UTC with milliseconds
+    'sourceTypes' => ['newswire', 'financial_media'],
+    'eventTypes' => ['mna'],
+    'minRelevance' => 0.5,
+    'orderBy' => 'availableAt',
+    'include' => ['content', 'companies', 'events'],
+    'limit' => 50,
+]);
+echo $page->pagination->hasMore ? 'more' : 'done', ' ', $page->pagination->nextCursor ?? '', "\n";
 ```
 
-| 파라미터 | 타입 | 비고 |
-| --- | --- | --- |
-| `query` | `string` | 불리언 연산자, 필드 필터(`ticker:`, `source:`, `isin:`), 따옴표로 묶은 구문 |
-| `tickers` | `string[]` | 예: `['AAPL', 'NVDA']` |
-| `sources` | `string[]` | 기본 소스 집합을 대체합니다 |
-| `optInSources` | `string[]` | 기본 집합에 추가합니다 |
-| `excludeSources` | `string[]` | 결과에서 제외합니다 |
-| `countries` | `string[]` | ISO 3166-1 alpha-2 |
-| `categories` | `ArticleCategory[]` | 주제 필터 |
-| `from` / `to` | `string` | `YYYY-MM-DD` 또는 ISO 8601 |
-| `language` | `string` | ISO 639-1, 서버 기본값은 `en` |
-| `includeContent` | `bool` | 기사 본문 전문 |
-| `includeEntities` | `bool` | 태깅된 기업 데이터 |
-| `excludeEmptyContent` | `bool` | 본문이 없는 기사 건너뛰기 |
-| `orderBy` / `order` | `OrderBy` / `SortOrder` | 정렬 |
-| `page` / `pageSize` | `int` | `pageSize`는 1~100 |
-
-`ArticleResponse`는 `Countable`과 `IteratorAggregate`를 구현하므로 `count($response)`와 `foreach ($response as $article)`을 모두 사용할 수 있습니다. 원본 목록은 `$response->articles`로 계속 접근할 수 있습니다.
-
-### URL로 단일 기사 조회
+`searchAll()`은 페이지를 대신 순회합니다. 호출할 때 요청을 검사하고 고정하며, 이후 페이지에는 `cursor`만 추가합니다.
+페이지마다 할당량을 쓰므로 `maxPages` 페이지(기본값 10) 후에 멈춥니다.
 
 ```php
-use Finlight\Request\GetArticleByLinkParams;
-
-$article = $client->articles->fetchArticleByLink(new GetArticleByLinkParams(
-    link: 'https://www.reuters.com/markets/example-article',
-    includeContent: true,
-    includeEntities: true,
-));
-
-foreach ($article->companies ?? [] as $company) {
-    printf("%s (%s) — confidence %.2f\n", $company->name, $company->ticker, $company->confidence ?? 0.0);
+$result = $client->articles->searchAll(['query' => 'ticker:AAPL', 'limit' => 100], maxPages: 5);
+foreach ($result as $article) {        // or: foreach ($result->pages() as $page)
+    echo $article->id, ' ', $article->title, "\n";
+}
+if ($result->truncated()) {
+    echo 'continue with cursor ', $result->nextCursor(), "\n";
 }
 ```
 
-## 뉴스 소스
+결과는 한 번만 순회할 수 있습니다. 잘못된 형식(예: `'limit' => 0` 또는 `'languages' => []`)은 전송 전에
+`FinlightValidationException`을 던집니다. 어휘 값은 로컬에서 검사하지 않으므로, 서버의 새 값은 SDK 업데이트 없이도
+동작합니다.
+
+## Look up articles, companies and sources
 
 ```php
-$sources = $client->sources->getSources();
+$article = $client->articles->get('EU8JwpsZ8iJehuyPZjMqRz', include: ['content']);
+$article = $client->articles->getByLink('https://www.reuters.com/...');
 
-$defaults = array_filter($sources, static fn ($source) => $source->isDefaultSource);
+$companies = $client->companies->search('NVDA', mic: 'XNAS');   // at most 10, no pages
+$companies = $client->companies->getMany([4821, 1001]);
+$company = $client->companies->get(4821);                       // every call is a request, no SDK cache
+$etag = $company->cacheInfo()?->etag;                           // keep it with the record to cache yourself
+$fresh = $client->companies->get(4821, ifNoneMatch: $etag);     // null on 304 ("not modified")
 
-echo count($defaults), ' of ', count($sources), " sources are on by default\n";
+$sources = $client->sources->list();
 ```
 
-## Webhook
+- 찾지 못하면 `NotFoundException`을 던집니다. 빈 결과가 아닙니다.
+- 기사 id 도입 전에 색인된 기사는 id로 조회하면 404가 됩니다. 이런 기사는 `getByLink()`를 쓰세요.
+- 조회 호출은 크레딧을 씁니다. `companies` 또는 `sources` 호출은 기사 요청처럼 월간 할당량에서 1 크레딧을 차감합니다(`getMany()`는
+  요청당 한 번). 304와 오류 응답도 1 크레딧을 차감합니다. 월간 할당량과 버스트 제한이 적용되므로 여기서도 429가 날 수 있습니다.
+- `companies` 호출에는 `entityAccess` 권한이 필요합니다(없으면 `ForbiddenException`).
+- SDK는 회사 레코드를 캐시하지 않습니다. `companies->get()`은 매번 요청을 보냅니다. 주요 회사 필드는 기사 페이로드에
+  이미 들어 있습니다. 크레딧을 아끼려면 레코드를 직접 보관하고, 신선한 동안(`cacheInfo()->cacheControl`의 max-age)은
+  다시 호출하지 마세요. 그 뒤에는 ETag를 `ifNoneMatch:`로 넘길 수 있으며, 304면 `null`을 돌려줍니다. 304도 1 크레딧을
+  차감합니다.
+- `CompanyList`와 `SourceList`는 `foreach`와 `count()`로 쓸 수 있습니다. 읽지 못한 항목은 `skipped()`에 있습니다.
 
-finlight는 모든 전송에 HMAC-SHA256 서명을 적용합니다. `WebhookService`는 서명을 검증하고, 타임스탬프 헤더가 있으면 5분의 재생 허용 범위를 적용한 뒤 파싱된 `Article`을 반환합니다.
+## Absent, null and empty
 
-이 서비스는 정적입니다. 클라이언트 인스턴스도 API 키도 필요하지 않습니다.
+일부 키는 요금제나 `include`에 따라 달라지며, 세 가지 상태가 있습니다.
 
-> **본문은 원본 그대로의, 파싱되지 않은 요청 바이트여야 합니다.** 읽기 전에 JSON을 디코딩하고 다시 인코딩하는 미들웨어가 있으면 서명이 무효화됩니다.
+| 상태 | 의미 | 구별 방법 |
+|---|---|---|
+| 없음 | 요청하지 않음, 요금제에 없음, 또는 raw 채널 | `contentPresent()` / `sentimentPresent()`가 false. `companies`, `events`가 `null` |
+| `null` | 요청했고 권한도 있지만 값이 없음 | `contentPresent()`가 true이고 `content`가 `null` |
+| `[]` | 태깅했지만 결과 없음 | `companiesPresent()`가 true이고 `companies`가 `[]` |
 
-### 순수 PHP
+- `content`와 `sentiment`에는 `contentPresent()`와 `sentimentPresent()`를 씁니다.
+- `companies`, `events`, `events[].companyIds`, `Source::$hasContent`는 키가 없으면 `null`입니다.
+  `companiesPresent()`와 `eventsPresent()`도 같은 뜻입니다. `companyIds`는 같은 응답에 `companies`가 있을 때만 옵니다.
+- `media`, `countries`, `categories`는 없으면 `[]`입니다.
+- 시간은 보내온 문자열 그대로 둡니다(`publishedAt`). `publishedAtTime()` 등 `...Time()` 메서드는 엄격하게 해석하며,
+  읽을 수 없으면 `null`을 돌려줍니다.
+- 새 서버가 보낸 알 수 없는 키는 무시합니다. `rawJson()`은 받은 JSON을 그대로 돌려줍니다.
+- 어휘 값은 일반 문자열입니다. 상수(`EventType::MNA`, `CompanyRole::ACQUIRER` 등)와 비교하세요. 알 수 없는 값은 그대로
+  유지됩니다.
+
+## Real-time streams
+
+이 SDK에는 WebSocket 전송 계층이 없습니다. 직접 만든 소켓 루프(예: `ratchet/pawl`, `amphp/websocket-client`)를 위해
+메시지를 만들고 프레임을 읽습니다.
 
 ```php
-use Finlight\Exception\WebhookVerificationException;
-use Finlight\Service\WebhookService;
+use Finlight\FinlightApiException;
+use Finlight\Frame;
+use Finlight\Subscribe;
 
+$headers = Subscribe::dialHeaders('YOUR_API_KEY');   // lowercase x-api-key; never put the key in the URL
+$subscribe = Subscribe::enriched([
+    'query' => 'ticker:NVDA',
+    'include' => ['companies', 'events'],
+    'includeUpdates' => true,
+]);
+// dial wss://wss.finlight.me with $headers, then send $subscribe
+
+$frame = Frame::decode($text);                       // for every text frame you receive
+switch ($frame->kind()) {
+    case Frame::CREATED:
+    case Frame::UPDATED:
+        echo $frame->event()?->data?->title, "\n";
+        break;
+    case Frame::PREEMPTED:
+        echo $frame->preempted()?->reason, "\n";     // connection_limit: stop; quota_exceeded: wait 1 h
+        break;
+    case Frame::ERROR:
+        echo $frame->error()?->code(), "\n";         // VALIDATION_FAILED: stop
+        break;
+}
+```
+
+- `Subscribe::raw([...])`는 `wss://wss.finlight.me/raw`용 메시지를 만듭니다. 보강 전 기사이며, 키는 `query`, `sources`,
+  `excludeSources`, `sourceTypes`, `excludeSourceTypes`, `language`, `includeUpdates`입니다. raw에는 `include`가 없습니다.
+- 두 스트림 모두 검색과 같이 `sourceTypes`와 `excludeSourceTypes`(`SourceType` 값)를 받습니다. SDK는 값을 검사하지
+  않습니다. 알 수 없는 값이면 서버가 `VALIDATION_FAILED`를 보내고 연결을 닫습니다.
+- `Frame::decode()`는 v3 프레임과, 첫 구독 전에 서버가 보내는 v2 형식의 제어 프레임을 읽습니다. 종류: `created`,
+  `updated`, `other`(이 SDK가 모르는 이벤트, 건너뛰세요), `admitted`, `pong`, `preempted`, `error`.
+- 루프 규칙: 25초마다 `{"action":"ping","t":<epoch ms>}`를 보냅니다. 60초 동안 어떤 형식의 pong도 오지 않으면 닫고 다시
+  연결합니다. 115분 후에는 새 연결을 엽니다. 다시 연결할 때마다 같은 구독을 보냅니다. 이벤트, `data.id`, `data`의 해시로
+  중복을 걸러냅니다. 이 값들은 `FinlightConfig`(`pingInterval`, `watchdogTimeout`, `rotationInterval`)에 있습니다.
+- 115분이 되면 이전 연결을 연 채로 새 연결을 열고 구독한 다음 이전 연결을 닫습니다. 요금제가 연결 한도에 도달해
+  있으면(예: 한도 1) 이전 연결이 아직 계산되어 새 연결이 거부됩니다. 이 연결이 거부되거나 실패하면(403, 5xx, 네트워크
+  오류) 이전 연결을 닫고 그 close 응답을 기다린 뒤(최대 5초) 바로 다시 연결합니다. 이 거부는 보고하지 않습니다. 이
+  연결마저 거부될 때만 아래 설명대로 기다립니다. 완전히 멈추는 거부(아래)는 여기서도 멈춥니다.
+- 다음 경우에는 완전히 멈춥니다: 연결 시 401, 연결 시 403 "Your subscription does not include WebSockets",
+  `VALIDATION_FAILED`, 이유가 `connection_limit`인 `connection.preempted`, 코드 1008로 닫힌 연결. 그 밖의 종료, 5xx, `HANDSHAKE_FAILED`,
+  `SEARCH_FAILED`에서는 대기 시간을 늘려 가며 다시 연결합니다. 연결 시 403 "Too many concurrent connections" 또는 429
+  뒤에는 최소 60초를 기다립니다. `PING_ON_DEFAULT_ROUTE`, `INTERNAL_ERROR`, 알 수 없는 코드는 로그만 남깁니다.
+- 늘려 가는 대기 시간은 `reconnectBaseDelay`(1초)에서 시작해 `reconnectMaxDelay`(30초)까지 두 배씩 늘어나며, pong이나
+  기사가 도착했을 때만 처음으로 돌아갑니다. `connection.admitted`는 세지 않습니다. 서버가 구독을 검사하기 전에 오기
+  때문에, admitted 뒤에 `SEARCH_FAILED`나 종료가 이어지는 루프도 계속 느려져야 합니다.
+- WebSocket 라이브러리가 거부된 연결의 본문을 준다면 읽고, 403 텍스트는 앞부분으로 비교합니다. 읽을 수 있는 본문이 없으면
+  401은 완전히 멈추고, 403은 최소 60초를 기다린 뒤 오류를 보고합니다.
+- `SEARCH_FAILED`는 5번 연속으로 왔을 때만 보고합니다(`searchFailedThreshold`). 그동안에도 계속 다시 연결합니다.
+- 월간 WebSocket 할당량을 다 쓰면(연결 시 403 "WebSocket quota exceeded", 또는 이유가 `quota_exceeded`인
+  `connection.preempted`) 성공할 때까지 한 시간마다 다시 시도합니다(`quotaReconnect`, `quotaReconnectInterval`).
+- 다시 연결한 뒤 자동으로 채워 주지 않습니다. 마지막으로 본 `availableAt`(raw: `firstSeenAt`)부터
+  `articles->searchAll()`로 빈 곳을 채우세요.
+
+알아 둘 제한:
+
+- 요금제의 연결 수 한도는 enriched, raw, 이전 SDK 연결이 함께 씁니다. `x-takeover: true`
+  (`Subscribe::dialHeaders($key, takeover: true)`)를 보내면 가장 오래된 연결을 대체합니다.
+- 서버는 2시간 후에 연결을 닫습니다.
+- 구독 직후 서버는 조건에 맞는 최신 기사를 한 번 보냅니다(다시 연결할 때마다 보냅니다). 오래된 기사일 수 있습니다.
+- 32,000바이트를 넘는 실시간 프레임은 서버가 알림 없이 버립니다. 그런 기사는 `articles->get()`으로 가져오세요.
+- `connection.admitted`는 서버가 구독을 검사하기 전에 옵니다. 구독이 받아들여졌다는 뜻이 아닙니다.
+
+## Webhooks
+
+finlight는 모든 webhook에 서명합니다. 무엇이든 해석하기 전에 **원본** 요청 본문으로 검증하세요.
+
+```php
+use Finlight\WebhookVerificationException;
+use Finlight\Webhooks;
+use Finlight\WrongPayloadVersion;
+
+$rawBody = file_get_contents('php://input');
+$secret = getenv('FINLIGHT_WEBHOOK_SECRET');
+if (!is_string($secret) || $secret === '') {
+    throw new RuntimeException('FINLIGHT_WEBHOOK_SECRET is not set');
+}
 try {
-    $article = WebhookService::constructEvent(
-        file_get_contents('php://input'),
-        $_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] ?? '',
-        getenv('FINLIGHT_WEBHOOK_SECRET') ?: '',
-        $_SERVER['HTTP_X_WEBHOOK_TIMESTAMP'] ?? null,
-    );
+    $result = Webhooks::constructEvent($rawBody, $_SERVER, $secret);
 } catch (WebhookVerificationException $e) {
-    http_response_code(400);
+    http_response_code(400);                 // never 410
     exit;
 }
-
-// 빠르게 응답하고, 처리는 비동기로 수행하세요.
-http_response_code(200);
-```
-
-### Laravel
-
-```php
-use Finlight\Exception\WebhookVerificationException;
-use Finlight\Service\WebhookService;
-use Illuminate\Http\Request;
-
-Route::post('/webhooks/finlight', function (Request $request) {
-    try {
-        $article = WebhookService::constructEvent(
-            $request->getContent(),
-            $request->header('X-Webhook-Signature', ''),
-            config('services.finlight.webhook_secret'),
-            $request->header('X-Webhook-Timestamp'),
-        );
-    } catch (WebhookVerificationException) {
-        abort(400);
-    }
-
-    ProcessFinlightArticle::dispatch($article->link);
-
-    return response()->noContent();
-});
-```
-
-### Symfony
-
-```php
-#[Route('/webhooks/finlight', methods: ['POST'])]
-public function handle(Request $request): Response
-{
-    try {
-        $article = WebhookService::constructEvent(
-            $request->getContent(),
-            $request->headers->get('X-Webhook-Signature', ''),
-            $this->finlightWebhookSecret,
-            $request->headers->get('X-Webhook-Timestamp'),
-        );
-    } catch (WebhookVerificationException) {
-        return new Response(status: 400);
-    }
-
-    $this->bus->dispatch(new IngestArticle($article->link));
-
-    return new Response(status: 204);
+if ($result instanceof WrongPayloadVersion) {
+    keep_for_later($result->raw);            // an old v2 body: answer 2xx anyway
+    http_response_code(204);
+    exit;
 }
+if (already_seen($result->eventId)) {         // deliveries can repeat: deduplicate on eventId
+    http_response_code(204);
+    exit;
+}
+http_response_code(204);                      // answer within 5 s, work afterwards
+fastcgi_finish_request();
+process($result->data);
 ```
 
-## 설정
+- `$headers`에는 `$_SERVER`, `getallheaders()`, PSR-7 요청, 프레임워크의 헤더 백을 넘길 수 있습니다. 이름은 대소문자를
+  구분하지 않고 찾습니다. `constructEventFromValues($rawBody, $signature, $timestamp, $secret)`는 두 헤더 값을 직접
+  받습니다. `verifySignature()`는 검사만 합니다.
+- 타임스탬프는 앞뒤 300초(`tolerance`) 안이어야 합니다.
+- 대시보드의 테스트 webhook에서는 `$result->isTest()`가 true입니다. 요금제 제한을 받지 않습니다.
+- 410으로 응답하지 마세요. webhook이 바로 비활성화됩니다. 2xx가 아닌 응답이 10번 이어져도 비활성화됩니다. 처리하지 않은
+  `WrongPayloadVersion`은 500이 되므로 반드시 처리하세요.
+
+원본 본문을 얻는 방법:
+
+| 프레임워크 | 원본 본문 | 헤더 |
+|---|---|---|
+| 순수 PHP | `file_get_contents('php://input')` | `$_SERVER` |
+| Laravel | `$request->getContent()` | `$request->headers->all()` |
+| Symfony | `$request->getContent()` | `$request->headers->all()` |
+| PSR-7 (Slim, Mezzio) | `$request->getBody()` | `$request` |
+
+webhook을 v3로 전환하기: 먼저 이 SDK를 배포합니다. `WrongPayloadVersion`에는 2xx로 응답하고 `raw`를 보관합니다. 그다음
+대시보드에서 webhook을 `payloadVersion` 3으로 바꿉니다. 전환 전에 대기열에 들어간 재전송이 옛 형식으로 오므로 약 2시간
+기다립니다.
+
+## Errors and retries
+
+SDK가 던지는 모든 예외는 `FinlightException`을 구현하며 `kind()`가 있습니다.
+
+| 예외 | `kind()` | 발생 시점 |
+|---|---|---|
+| `FinlightApiException` | `api` | API가 오류로 응답함. `status()`, `code()`, `type()`, `title()`, `detail()`, `requestId()`, `errors()`, `apiKind()`, `raw()`. 코드별 하위 클래스: `ValidationFailedException`, `CursorInvalidException`, `CursorMismatchException`, `UnauthorizedException`, `ForbiddenException`, `NotFoundException`, `RateLimitedException`, `InternalServerException`. 알 수 없는 코드는 기본 클래스(`apiKind()`는 `other`). |
+| `RateLimitedException` | `api` | `limitType()`은 `monthly`, `burst`, `unknown` 또는 새 값. `retryAfter()`는 초 단위. |
+| `FinlightValidationException` | `validation` | 요청이 로컬에서 거부됨(`InvalidArgumentException`이기도 함). |
+| `FinlightNetworkException`, `FinlightTimeoutException` | `network`, `timeout` | 네트워크 장애 또는 시간 초과. 원래 오류는 `getPrevious()`. |
+| `FinlightDecodeException` | `decode` | 응답, 프레임, webhook 본문을 읽을 수 없음. |
+| `WebhookVerificationException` | `webhook_verification` | webhook 검증 실패(`reason()`). |
+
+재시도: 5xx 응답, 네트워크 오류, 시간 초과는 대기 시간을 늘려 가며 최대 3번 재시도하며, 검색도 포함됩니다. 400, 401, 403,
+404와 월간 429는 재시도하지 않습니다. 월간 429는 `searchAll()` 안에서도 바로 실패합니다. 버스트 429는 `Retry-After`초
+(헤더가 없으면 10초)를 기다린 뒤 한 번 더 시도합니다. `retryOnBurst: 'off'`로 끌 수 있습니다. 모든 호출은 고유한
+`X-Request-Id`를 보내며, 재시도할 때도 같은 값을 씁니다. `totalTimeout`은 재시도와 버스트 대기를 포함한 호출 전체 시간을
+제한합니다. PHP-FPM에서는 이 값을 쓰세요.
+
+PHP에는 취소 기능이 없어서 실행 중인 호출을 밖에서 멈출 수 없습니다. 대신 `totalTimeout`으로 시간을 제한하세요.
+
+## Configuration
 
 ```php
-use Finlight\Config;
 use Finlight\FinlightClient;
+use Finlight\FinlightConfig;
 
-$client = new FinlightClient(new Config(
-    apiKey: 'your-api-key',
-    baseUrl: 'https://api.finlight.me',
-    timeoutMs: 5000,
-    retryCount: 3,
+$client = new FinlightClient(new FinlightConfig(
+    apiKey: 'YOUR_API_KEY',
+    baseUrl: 'https://api.finlight.me',   // a trailing slash is fine
+    wssUrl: 'wss://wss.finlight.me',      // raw streams use <wssUrl>/raw
+    timeout: 30.0,                        // seconds per attempt
+    totalTimeout: null,                   // optional cap per call, retries included
+    maxRetries: 3,
+    retryOnBurst: 'once',                 // or 'off'
+    maxPages: 10,
+    httpClient: null,                     // your own PSR-18 client
 ));
 ```
 
-| 옵션 | 기본값 | 의미 |
-| --- | --- | --- |
-| `apiKey` | — | 필수. `X-API-KEY` 헤더로 전송됩니다 |
-| `baseUrl` | `https://api.finlight.me` | API 기본 URL |
-| `timeoutMs` | `5000` | 이 라이브러리가 생성하는 HTTP 클라이언트에 적용됩니다 |
-| `retryCount` | `3` | **총** 시도 횟수이므로 기본값은 1회 호출과 2회 재시도입니다 |
+| 키 | 기본값 | |
+|---|---|---|
+| `apiKey` | 필수 | |
+| `baseUrl` | `https://api.finlight.me` | |
+| `wssUrl` | `wss://wss.finlight.me` | raw: `/raw` |
+| `timeout` | 30초 | 시도마다 |
+| `totalTimeout` | 없음 | 호출마다 |
+| `maxRetries` | 3 | |
+| `retryBaseDelay`, `retryMaxDelay` | 0.5초, 8초 | |
+| `retryOnBurst`, `burstWait` | `once`, 10초 | `burstWait`는 `Retry-After`가 없을 때만 |
+| `maxPages` | 10 | |
+| `maxResponseBytes` | 32 MiB | |
+| `pingInterval`, `watchdogTimeout`, `rotationInterval` | 25초, 60초, 115분 | 소켓 루프용 |
+| `reconnectBaseDelay`, `reconnectMaxDelay`, `longBackoff` | 1초, 30초, 60초 | 소켓 루프용 |
+| `quotaReconnect`, `quotaReconnectInterval` | 켜짐, 1시간 | 소켓 루프용 |
+| `searchFailedThreshold`, `dedupeCacheSize` | 5, 1000 | 소켓 루프용 |
+| `maxMessageBytes`, `connectTimeout` | 32 MiB, 30초 | 소켓 루프용 |
+| `logger` | 출력 없음 | PSR-3 |
+| `clock` | 시스템 시계 | PSR-20. `sleep()`이 있는 시계는 대기에 사용됩니다 |
+| `httpClient`, `requestFactory`, `streamFactory` | Guzzle 또는 discovery | PSR-18, PSR-17 |
 
-### 직접 만든 HTTP 클라이언트 사용
+모든 시간은 `float` 초 단위입니다. 직접 만든 `httpClient`를 쓰면 그 클라이언트의 시간 제한, 프록시, 미들웨어가
+적용됩니다. 시도마다 할당량을 쓰므로 재시도 미들웨어는 추가하지 마세요. `totalTimeout`은 시도 사이에 계속 검사합니다.
 
-임의의 PSR-18 클라이언트를 사용할 수 있습니다. 타임아웃, 프록시, 미들웨어, 로깅을 제어하려면 주입하세요:
+## Logging
 
-```php
-use Finlight\Config;
-use Finlight\FinlightClient;
-use GuzzleHttp\Client as Guzzle;
-use Nyholm\Psr7\Factory\Psr17Factory;
+PSR-3 `logger`를 넘기면 SDK의 동작을 볼 수 있습니다. 넘기지 않으면 아무것도 출력하지 않습니다. 재시도(info), 버스트 대기,
+건너뛴 항목과 멈춘 `searchAll()`(warning), 각 요청과 그 request id(debug)를 기록합니다. 메시지는 `finlight:`로
+시작합니다. API 키, webhook 시크릿, 서명, 본문은 로그와 예외 메시지에 절대 나오지 않으며, 설정을 `var_dump()`하면 키는
+`***`로 보입니다. SDK는 stdout에 쓰지 않고 핸들러도 등록하지 않습니다.
 
-$factory = new Psr17Factory();
+## Data notes
 
-$client = new FinlightClient(
-    new Config(apiKey: 'your-api-key'),
-    new Guzzle(['timeout' => 10]),
-    $factory,
-    $factory,
-);
-```
+- 오래된 기사는 `publishedAt`이 `"1970-01-01T00:00:00.000Z"`일 수 있습니다. 보낸 그대로 전달됩니다.
+- 빈 텍스트는 `null`로 옵니다(`summary`, `content`).
+- 역할 기능 이전에 태깅된 기사는 `role`과 `relevance`가 `null`이고 `events`가 `[]`입니다.
+- id 도입 전에 색인된 기사는 `articles->get($id)`가 404입니다. `getByLink()`를 쓰세요.
+- 오래된 기사는 `availableAt`이 `null`이며, raw 스트림에서는 항상 `null`입니다.
+- `source->type`과 `Source::$type`은 `SourceType` 값을 가집니다. 소스가 분류되지 않았으면 `null`입니다. 소스 유형 도입 전에
+  색인된 기사도 `source->type`이 `null`입니다. `search()`, `searchAll()`, `Subscribe::enriched()`, `Subscribe::raw()`에서
+  `sourceTypes`와 `excludeSourceTypes`로 거를 수 있습니다. 분류되지 않은 소스는 `sourceTypes`에 맞지 않고
+  `excludeSourceTypes`에서는 남습니다. v3 웹훅도 같은 두 필터를 받으며, 설정은 대시보드에서 합니다.
 
-클라이언트를 주입하면 `timeoutMs`는 더 이상 적용되지 않습니다. PSR-18에는 이식 가능한 타임아웃 설정이 없으므로 직접 만든 클라이언트에서 설정하세요.
+## Migrating from 1.x
 
-## 오류
+전체 안내는 [docs.finlight.me](https://docs.finlight.me/migration/v2-to-v3)에 있습니다. 요약:
 
-이 라이브러리가 던지는 모든 예외는 `Finlight\Exception\FinlightException`을 구현하므로 catch 블록 하나로 전부 처리할 수 있습니다.
+| 1.x | 2.x |
+|---|---|
+| `new Config('key', timeoutMs: 5000)` | `new FinlightConfig(apiKey: 'key', timeout: 5.0)` |
+| `$client->articles->fetchArticles(new GetArticlesParams(...))` | `$client->articles->search([...])`, `searchAll([...])` |
+| `fetchArticleByLink(new GetArticleByLinkParams(...))` | `getByLink($link, include: [...])`, `get($id)` |
+| `page` / `pageSize` | `limit` / `cursor` |
+| `includeContent`, `includeEntities` | `'include' => ['content', 'companies', 'events']` |
+| `OrderBy::PublishDate`, `SortOrder::Desc` (열거형) | `'orderBy' => 'publishedAt'`, `'order' => 'desc'` (문자열) |
+| `language` | `languages` (목록) |
+| `$article->publishDate`, `createdAt`, `revisedDate` (DateTime) | `publishedAt`, `firstSeenAt`, `revisedAt` (문자열), `publishedAtTime()` |
+| `$article->images` | `$article->media[]->url` |
+| `$article->source` (문자열) | `$article->source->domain` |
+| `$article->sentiment`, `confidence` | `$article->sentiment->label`, `->confidence` |
+| `$client->sources->getSources()` | `$client->sources->list()` |
+| `WebhookService::constructEvent($body, $sig, $secret, $ts)` | `Webhooks::constructEvent($body, $headers, $secret)` |
+| webhook `isUpdate` | `$event->event === 'article.updated'` |
+| `ApiException`, `AuthenticationException`, `RateLimitException`, `TransportException` | `FinlightApiException`, `UnauthorizedException` / `ForbiddenException`, `RateLimitedException`, `FinlightNetworkException` |
 
-| 예외 | 발생 시점 |
-| --- | --- |
-| `AuthenticationException` | HTTP 401 / 403 — 키가 유효하지 않거나 요금제에 권한이 없음 |
-| `NotFoundException` | HTTP 404 |
-| `RateLimitException` | 재시도 후에도 HTTP 429. `retryAfterSeconds`를 포함합니다 |
-| `ApiException` | 그 밖의 비 2xx. `statusCode`와 `responseBody`를 포함합니다 |
-| `TransportException` | 응답이 전혀 없음 — DNS, 연결, TLS, 타임아웃 |
-| `MalformedResponseException` | 2xx 본문에 필수 필드가 없음 |
-| `WebhookVerificationException` | 서명, 타임스탬프 또는 페이로드가 거부됨 |
-| `ConfigurationException` | 생성 시 PSR-18 클라이언트 또는 PSR-17 팩토리를 찾을 수 없음 |
+webhook 전환은 네 단계입니다: 2.x를 배포합니다. `WrongPayloadVersion`에 2xx로 응답하고 `raw`를 보관합니다. 대시보드에서
+webhook을 `payloadVersion` 3으로 바꿉니다. 옛 재전송이 끝날 때까지 약 2시간 기다립니다.
 
-```php
-use Finlight\Exception\FinlightException;
-use Finlight\Exception\RateLimitException;
-
-try {
-    $response = $client->articles->fetchArticles($params);
-} catch (RateLimitException $e) {
-    sleep($e->retryAfterSeconds ?? 60);
-} catch (FinlightException $e) {
-    logger()->error('finlight request failed', ['error' => $e->getMessage()]);
-}
-```
-
-### 재시도
-
-HTTP `429`, `500`, `502`, `503`, `504`는 지수 백오프로 자동 재시도됩니다(500 ms, 1 s, 2 s, …, 1회 대기 최대 30 s). 이는 공식 TypeScript 클라이언트와 동일한 동작입니다. 전송 계층 실패는 재시도되지 **않으며**, 즉시 `TransportException`으로 표면화됩니다.
-
-## 지원 범위
-
-이 클라이언트는 REST API와 Webhook 검증을 다룹니다.
-
-**WebSocket 스트리밍은 의도적으로 포함하지 않았습니다.** PHP의 요청-응답 모델은 장시간 유지되는 스트림에 적합하지 않으며, 제대로 구현하려면 ReactPHP 또는 Ratchet과 함께 감시되는 워커 프로세스가 필요합니다. 실시간 스트림이 필요하다면 TypeScript, Go, Python 또는 .NET 클라이언트를 사용하세요([docs.finlight.me](https://docs.finlight.me) 참조). PHP 애플리케이션으로의 푸시 전달에는 Webhook이 지원되는 방식입니다.
-
-## 개발
+## Development
 
 ```bash
 composer install
-composer test          # PHPUnit
-composer stan          # PHPStan max 레벨, PHP 8.1~8.4 대상 검사
+composer test                  # unit and conformance tests, no network
+composer stan                  # PHPStan, level max
+composer sync-conformance -- --from=<monorepo>/shared/contracts/api-v3
+composer check                 # kit MANIFEST, case map, README skeleton, no v1/v2 leftovers
 ```
 
-CI는 PHP 8.1부터 8.4까지 테스트 스위트를 실행합니다.
+`CONFORMANCE.md`는 계약 키트(`conformance/`, 버전은 `CONTRACT_VERSION`, `MANIFEST`로 검증)의 모든 케이스를 해당 테스트에
+연결합니다. 라이브 테스트는 dev에서만 실행하며 `FINLIGHT_API_KEY`, `FINLIGHT_BASE_URL`, `FINLIGHT_WSS_URL`이 필요합니다:
+`php scripts/live-smoke.php`. 운영 호스트는 거부합니다.
 
-## 릴리스
+## License
 
-이 패키지는 [Packagist](https://packagist.org/packages/finlight/client)를 통해 배포되며, Packagist가 이 저장소를 직접 읽습니다. 업로드 단계는 없습니다.
-
-1. `FinlightClient::VERSION`을 올리고 `CHANGELOG.md`를 갱신합니다.
-2. 릴리스에 태그를 붙입니다: `git tag v1.0.1 && git push --tags`.
-3. GitHub 연동을 활성화해두면 Packagist가 태그를 자동으로 가져갑니다(Packagist → 프로필 → *Settings* → GitHub 연동, 또는 수동 동기화를 위한 패키지의 *Update* 버튼).
-
-## 라이선스
-
-MIT — [LICENSE](LICENSE) 참조.
-
-## 관련 링크
-
-- 한국어 제품 페이지: https://finlight.me/ko/news-api
+MIT

@@ -4,6 +4,8 @@ composer.lock
 /.phpunit.cache/
 /build/
 /coverage/
+/local/
+.env
 .php-cs-fixer.cache
 .idea/
 .vscode/
